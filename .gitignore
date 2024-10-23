@@ -2,7 +2,7 @@ __pycache__
 .vscode
 .coverage
 run.py
-temp.g
+tmp.g
 TODO
 unecessary
 .DS_Store

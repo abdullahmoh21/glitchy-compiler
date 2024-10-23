@@ -1,7 +1,5 @@
 from Compiler.utils import *
 import llvmlite.ir as ir
-import llvmlite.binding as llvm
-
 
 class LLVMCodeGenerator:
     def __init__(self, symbol_table):

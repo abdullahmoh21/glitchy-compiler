@@ -621,8 +621,6 @@ class Parser:
             self.nextToken()
             right = self.comparison()
             node = Comparison(node, operator, right, self.lineNumber)
-            node.left.parent = node
-            node.right.parent = node
         return node
 
     # for <, <=, >, >= operators
@@ -633,8 +631,6 @@ class Parser:
             self.nextToken()
             right = self.additive()
             node = Comparison(node, operator, right, self.lineNumber)
-            node.left.parent = node
-            node.right.parent = node
         return node
     
     # for + and - operators
@@ -645,8 +641,6 @@ class Parser:
             self.nextToken()
             right = self.additive()
             binOp = BinaryOp(node, operator, right, line=self.lineNumber)
-            binOp.left.parent = binOp
-            binOp.right.parent = binOp
             return binOp
         return node
 

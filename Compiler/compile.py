@@ -1,15 +1,13 @@
 import argparse
+import subprocess
+import tempfile
 import os
-import llvmlite.ir as ir
 import llvmlite.binding as llvm
+import llvmlite.ir as ir
+from ctypes import CFUNCTYPE
+from Compiler import *
 from collections import deque
-from Compiler.Lexer import *
-from Compiler.Parser import *
-from Compiler.Analyzer import *
-from Compiler.Generator import *
-from Compiler.Glitch import *
-from Compiler.utils import *
-from ctypes import CFUNCTYPE, c_void_p
+
 
 log_queue = deque()
 COLORS = {

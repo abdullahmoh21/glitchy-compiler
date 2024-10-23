@@ -17,16 +17,18 @@ class SemanticAnalyzer:
     def analyze(self):
         if error.has_error_occurred():
             print("Parsing errors occurred. Cannot proceed with semantic analysis.")
-            return
+            return None, None
         
         if self.ast is None or self.symbolTable is None:
-            return
+            return None, None
         try:
             self.ast.accept(self)
             
         except Exception as e:
             throw(SemanticError(e))
         
+        curPassNo = self.ast.stats['passNo']
+        self.ast.addRef('passNo', (curPassNo+1))
         return self.glitchPresent, self.symbolTable
         
     def visit_program(self, node):
@@ -501,14 +503,12 @@ class SemanticAnalyzer:
 
         def collect(node):
             is_string_cat = isinstance(node, BinaryOp) and node.operator == '+' and node.evaluateType() == 'string'
-            if not is_string_cat:   
+            if not is_string_cat:  # accepting a binaryOp wll lead to processing like arithmetic 
                 node.accept(self)
             if is_string_cat:
                 collect(node.left)
                 collect(node.right)
             elif node.evaluateType() in ['string','integer','double','boolean','null']:
-                if isinstance(node, VariableReference):
-                    node.scope = self.symbolTable.scopeOf(node.name)  
                 strings.append(node)
             else:
                 throw(TypeError(f"Illegal Expression in String concatenation: {node}  with types:'{node.evaluateType()}' '+' '{node.evaluateType()}'"))
@@ -518,6 +518,9 @@ class SemanticAnalyzer:
     
     def evalStrCat(self, node):
         """ Attempts to evaluated a string concatenation. defers otherwise """
+        if node.visited:
+            return
+        node.visited = True
         evaluated_strings = []
         buffer = [] 
         fully_evaluated = True  
@@ -561,7 +564,7 @@ class SemanticAnalyzer:
                     buffer.append(evaluated_expr)  # Append the evaluated expression
 
             else:
-                raise TypeError(f"Unsupported type in string concatenation: {type(expr).__name__}")
+                throw(TypeError(f"Unsupported type in string concatenation on line {node.line}: {type(expr).__name__}"))
 
         if buffer:
             evaluated_strings.append(''.join(buffer))
@@ -819,6 +822,5 @@ class SemanticAnalyzer:
         if if_block_has_return or elif_blocks_have_return:
             return False 
 
-        # Raise an error if none of the branches guarantee a return
-        raise ReturnError(f"Not all paths in the if-elif-else block return in function '{self.func_name}'.")
+        throw(ReturnError(f"Not all paths in the if-elif-else block return in function '{self.func_name}'."))
           

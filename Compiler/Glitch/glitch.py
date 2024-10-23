@@ -1,11 +1,17 @@
+from ctypes import CFUNCTYPE, c_void_p
+import tempfile
+import llvmlite.binding as llvm
 from Compiler.Analyzer import *
 from Compiler.Generator import *
 from Compiler.utils import *
-from ctypes import CFUNCTYPE, c_void_p
 import llvmlite.ir as ir
-import llvmlite.binding as llvm
 from enum import Enum
+import subprocess
+import termios
 import random
+import copy
+import sys
+import os
 
 class GlitchType(Enum):
     FLIP_LOG_OPS = "Flip Logical ops"
@@ -17,29 +23,63 @@ class GlitchType(Enum):
     CHANGE_VARIABLE = "Change A variable's value"
     REF_SWAP = "A variable reference could point to a different variable instead"
     NO_GLITCH = "No glitch occurred"
+        
+def clear_stdin():
+    def clear_stdin():
+        """
+        Clears the standard input buffer.
+        Works on both POSIX and Windows systems.
+        """
+        try:
+            if os.name == 'posix':
+                termios.tcflush(sys.stdin, termios.TCIFLUSH)
+            elif os.name == 'nt':
+                import msvcrt
+                while msvcrt.kbhit():
+                    msvcrt.getch()
+            else:
+                # Fallback for other OSes: read and discard until no more input
+                import select
+                while True:
+                    ready, _, _ = select.select([sys.stdin], [], [], 0)
+                    if not ready:
+                        break
+                    sys.stdin.read(1)
+        except Exception as e:
+            print(f"Error clearing stdin: {e}")
 
 class GlitchEngine:
     def __init__(self, ast):
         self.ast = ast
-        self.stats = ast.stats
-        self.cycle_count = 0  
-        self.glitch_applied = None          # Single glitch applied
-        self.glitch_detail = None           # Detail of the glitch
-        self.glitch_history = []            # History of all glitches
+        self.glitched_ast = copy.deepcopy(ast)
+        self.stats = self.glitched_ast.stats
+        self.cycle_count = 0
+        self.glitch_applied = None
+        self.glitch_detail = None
+        self.glitch_history = []
+
+        # LLVM Initialization
+        llvm.initialize()
+        llvm.initialize_native_target()
+        llvm.initialize_native_asmprinter()
+
+    def __del__(self):
+        llvm.shutdown()
 
     def run(self):
-        print("Initial AST:")
-        self.ast.print_content()
         while True:
-            self.cycle()
+            try:
+                self.cycle()
+                self.glitched_ast = copy.deepcopy(self.ast) # reset ast
+            except Exception as e:
+                print(f"An error occurred during glitch: {e}")
+                break
 
-            # Ask the user if they want to continue
             continue_game = input("Do you want to continue to the next glitch intensity? (y/n) ")
             if continue_game.lower() != 'y':
                 print("Exiting the Glitch Engine.")
                 break
 
-            # Increase intensity for the next cycle
             self.cycle_count += 1
 
     def cycle(self):
@@ -49,19 +89,17 @@ class GlitchEngine:
         self.glitch_detail = None
 
         self.apply_glitches(glitches)
-        print("After glitches, the AST is:\n")
-        self.ast.print_content()
-        print("Output:")
+        print("Output Console:")
         print("----------------------------------")
         self.compile_glitched()
         print("----------------------------------")
+
         self.present_mcq()
 
     def apply_glitches(self, possible_glitches):
         """Applies a random glitch (or none) from the possible glitches."""
-        
-        if not possible_glitches or random.random() <= 0.2:
-            print("[DEBUG] Glitching skipped")
+
+        if not possible_glitches or random.random() <= 0.15:
             self.glitch_applied = GlitchType.NO_GLITCH
             self.glitch_detail = "No glitch occurred"
             self.glitch_history.append((self.glitch_applied, self.glitch_detail))
@@ -69,14 +107,9 @@ class GlitchEngine:
 
         glitch_to_apply = random.choice(possible_glitches)
 
-        
+        if glitch_to_apply == GlitchType.FLIP_LOG_OPS:
+            self.flip_logical_ops()
 
-        # if glitch_to_apply == GlitchType.FLIP_LOG_OPS:
-        #     self.flip_logical_ops()
-            
-        if True:
-            self.ignore_function_calls()
-            
         elif glitch_to_apply == GlitchType.FLIP_COMPARISONS:
             self.flip_comparisons()
 
@@ -85,7 +118,7 @@ class GlitchEngine:
 
         elif glitch_to_apply == GlitchType.CHANGE_VARIABLE:
             self.change_variable()
-            
+
         elif glitch_to_apply == GlitchType.IGNORE_FUNCTION_CALLS:
             self.ignore_function_calls()
 
@@ -98,46 +131,40 @@ class GlitchEngine:
         elif glitch_to_apply == GlitchType.REF_SWAP:
             self.ref_swap()
 
-        # self.glitch_applied = glitch_to_apply
-        self.glitch_applied = GlitchType.IGNORE_FUNCTION_CALLS
+        self.glitch_applied = glitch_to_apply
         self.glitch_history.append((self.glitch_applied, self.glitch_detail))
 
     def present_mcq(self):
-        if self.glitch_applied == GlitchType.NO_GLITCH:
-            correct_answer = "No glitch occurred"
-        else:
-            correct_answer = self.glitch_detail
-
+        correct_answer = self.glitch_detail
         all_answers = [correct_answer]
-
-        # Generate three unique incorrect answers
         incorrect_answers = self.generate_incorrect_answers(3, self.glitch_applied, self.glitch_detail)
-        
+
         if incorrect_answers:
             all_answers.extend(incorrect_answers)
         else:
-            # Handle the case where insufficient incorrect answers could be generated
-            print("Unable to generate enough unique incorrect answers.")
+            throw(GlitchError("Unable to generate enough unique incorrect answers."))
             return
 
         random.shuffle(all_answers)
-        question = f"What glitch occurred?\n"
+        question = "What glitch occurred?\n"
         for idx, answer in enumerate(all_answers, 1):
             question += f"{idx}. {answer}\n"
         question += "\nYour answer (-1 to quit, type 'hint' for a hint): "
 
+        # Print the question once
+        print(question)
+
         while True:
-            user_input = input(question).strip().lower()
+            user_input = input("Your answer: ").strip().lower()
 
             if user_input == '-1':
                 print(f"Quitting. The correct answer was: {correct_answer}")
                 return
             elif user_input == 'hint':
-                if self.glitch_applied != GlitchType.NO_GLITCH:
-                    print(f"Hint: The glitch is of type '{self.glitch_applied.value}'.")
-                    print(f"Explanation: {self.get_glitch_explanation(self.glitch_applied)}")
+                if random.random() <= 0.1:
+                    print("I am not helping you.")
                 else:
-                    print("Hint: No glitch occurred.")
+                    print(f"The glitch is of type: {self.get_glitch_explanation(self.glitch_applied)}")
                 continue  # Ask for input again after providing hint
             else:
                 try:
@@ -157,53 +184,53 @@ class GlitchEngine:
     def generate_incorrect_answers(self, length, actual_glitch_type, actual_glitch_detail):
         """
         Generates a list of plausible incorrect answers based on the possible glitches,
-        avoiding the actual glitch type if possible.
+        avoiding the actual glitch detail.
         Ensures each is of a different type and not the actual glitch detail.
         """
-        # Gather all possible glitches including NO_GLITCH
-        all_possible_glitches = self.possible_glitches()
-        all_possible_glitches.append(GlitchType.NO_GLITCH)
 
-        if actual_glitch_type != GlitchType.NO_GLITCH:
-            # Exclude only the actual glitch type
-            possible_incorrect_glitches = [glitch for glitch in all_possible_glitches if glitch != actual_glitch_type]
-        else:
-            # If the actual glitch is NO_GLITCH, exclude it from incorrect answers
-            possible_incorrect_glitches = [glitch for glitch in all_possible_glitches if glitch != actual_glitch_type]
-
-        random.shuffle(possible_incorrect_glitches)  # Shuffle to ensure randomness
-
+        all_glitches = [glitch for glitch in GlitchType if glitch != actual_glitch_type]
+        random.shuffle(all_glitches)
         incorrect_answers = []
-        used_glitch_types = set()  # Track glitches already used
 
-        for glitch in possible_incorrect_glitches:
-            if glitch in used_glitch_types:
-                continue  # Ensure each glitch type is used only once
+        for glitch in all_glitches:
             answer = self._generate_answer_by_type(glitch)
             if answer and answer != actual_glitch_detail and answer not in incorrect_answers:
                 incorrect_answers.append(answer)
-                used_glitch_types.add(glitch)
                 if len(incorrect_answers) == length:
                     break
 
-        return incorrect_answers if len(incorrect_answers) == length else incorrect_answers  # Return whatever was generated
+        # If not enough incorrect answers, add generic ones
+        while len(incorrect_answers) < length:
+            incorrect_answers.append(f"A random glitch of type '{random.choice(all_glitches).value}' occurred.")
+
+        return incorrect_answers
 
     def _generate_answer_by_type(self, selected_type):
         """Generates an incorrect answer based on the specified type."""
-        
+
         if selected_type == GlitchType.CHANGE_VARIABLE and self.stats.get('varDecl'):
             var = random.choice(self.stats['varDecl'])
-            int_val = random.randint(0, 100)
-            double_val = round(random.uniform(0, 100), 2)
-            null_val = "Null"
-            str_val = random.choice([
-                "Why is glitchy so good?", "Who made this genius language?",
-                "Please end me.", "I am so happy!", "I had to add a Hello World!!",
-                "Does heaven exist?", "I am so bored", "Can I be loved?",
-                "I can make a compiler, but can I make a life for myself?"
-            ])
-            incorrect_value = random.choice([int_val, double_val, str_val, null_val])
-            return f"Variable '{var.name}' value changed to {incorrect_value}"
+            var_type = var.evaluateType()
+
+            if var_type == 'integer':
+                int_val = random.randint(0, 100)
+                incorrect_value = int_val
+            elif var_type == 'double':
+                double_val = round(random.uniform(0, 100), 2)
+                incorrect_value = double_val
+            elif var_type == 'string':
+                str_val = random.choice([
+                    "Why is glitchy so good?", "Who made this genius language?",
+                    "Please end me.", "I am so happy!", "I had to add a Hello World!!",
+                    "Does heaven exist?", "I am so bored", "Can I be loved?",
+                    "I can make a compiler, but can I make a life for myself?"
+                ])
+                incorrect_value = f'"{str_val}"'
+            elif var_type == 'boolean':
+                incorrect_value = f'"true"' if node.value == "false" else '"false"'
+            else:
+                incorrect_value = "Null"
+            return f"Variable '{var.name}'s value changed to {incorrect_value}"
 
         elif selected_type == GlitchType.IGNORE_FUNCTION_CALLS and self.stats.get('funcCall'):
             func = random.choice(self.stats['funcCall'])
@@ -237,16 +264,15 @@ class GlitchEngine:
 
         elif selected_type == GlitchType.VARIABLE_SHUFFLING and len(self.stats.get('varDecl', [])) > 1:
             var1, var2 = random.sample(self.stats['varDecl'], 2)
-            return f"Variables '{var1.name}' and '{var2.name}' have been shuffled"
+            return f"The values of variable '{var1.name}' and '{var2.name}' have been shuffled"
 
         elif selected_type == GlitchType.REF_SWAP and len(self.stats.get('varRef', [])) > 1:
-            var1, var2 = random.sample(self.stats['varRef'], 2) 
+            var1, var2 = random.sample(self.stats['varRef'], 2)
             while var1.name == var2.name:
                 var2 = random.choice(self.stats['varRef'])
             return f"The reference of '{var1.name}' on line {var1.line} points to the variable '{var2.name}' instead"
 
         elif selected_type == GlitchType.NO_GLITCH:
-            # This should only be used when NO_GLITCH is an incorrect answer
             return "No glitch occurred"
 
         return None
@@ -257,7 +283,7 @@ class GlitchEngine:
 
         if self.stats.get('comparison'):
             glitches.append(GlitchType.FLIP_COMPARISONS)
-            
+
         if self.stats.get('logOp'):
             glitches.append(GlitchType.FLIP_LOG_OPS)
 
@@ -282,88 +308,65 @@ class GlitchEngine:
         return glitches
 
     def compile_glitched(self):
-        # Semantic analysis 
-        analyzer = SemanticAnalyzer(self.ast)
-        _ , symbol_table = analyzer.analyze()
+        clear_errors()
+        analyzer = SemanticAnalyzer(self.glitched_ast)
+        _, symbol_table = analyzer.analyze()
 
         if has_error_occurred():
-            return  
-
-        # LLVM Initialization 
-        try:
-            llvm.initialize()
-            llvm.initialize_native_target()
-            llvm.initialize_native_asmprinter()
-        except Exception as e:
-            print(f"LLVM initialization failed: {str(e)}")
             return
 
         # LLVM IR code generation phase
         llvmir_gen = LLVMCodeGenerator(symbol_table)
-        llvm_ir = llvmir_gen.generate_code(self.ast)
+        llvm_ir = llvmir_gen.generate_code(self.glitched_ast)
 
         if has_error_occurred() or llvm_ir is None:
-            llvm.shutdown()
-            return  
+            return
 
-        # LLVMIR verification
         try:
+            # Parse and verify the LLVM IR
             mod = llvm.parse_assembly(str(llvm_ir))
             mod.verify()
+
+            # Create a target machine
+            target_machine = llvm.Target.from_default_triple().create_target_machine()
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                object_path = os.path.join(temp_dir, "output.o")
+                executable_path = os.path.join(temp_dir, "a.out")
+
+                # Emit object code to file
+                with open(object_path, 'wb') as obj_file:
+                    obj_file.write(target_machine.emit_object(mod))  # Directly write the returned object bytes
+
+                # Link object file to create executable
+                link_cmd = ['clang', object_path, '-o', executable_path]
+
+                # Run the linker
+                subprocess.run(link_cmd, check=True)
+
+                # Execute the compiled executable in a subprocess
+                # stdin, stdout, stderr are inherited from the parent process
+                process = subprocess.Popen(executable_path)
+                process.wait()
+
+
+        except subprocess.CalledProcessError as cpe:
+            print(f"Linking failed: {cpe}")
+        except FileNotFoundError as fnfe:
+            print(f"Required tool not found: {fnfe}")
+            print("Please ensure that 'clang' is installed and in your system's PATH.")
         except Exception as e:
-            print(f"An error occurred during the LLVM IR verification: {e}")
-            llvm.shutdown()
-            return  # Return early to avoid running passes on invalid IR
-
-        # optimization passes
-        try:
-            target = llvm.Target.from_default_triple()
-            target_machine = target.create_target_machine()
-
-            # Set up the pass manager and apply optimizations
-            pmb = llvm.create_pass_manager_builder()
-            pmb.opt_level = 3
-
-            pass_manager = llvm.create_module_pass_manager()
-            pmb.populate(pass_manager)
-
-            # Run the pass manager
-            pass_manager.run(mod)
-        except Exception as e:
-            print(f"An error occurred during the LLVM optimization pass: {e}")
-            llvm.shutdown()
-            return
+            throw(GlitchError(f"{e}"))
         
-        # Mcjit compiler
-        try:
-            if not has_error_occurred():
-                with llvm.create_mcjit_compiler(mod, target_machine) as engine:
-                    engine.finalize_object()
-                    engine.run_static_constructors()
-
-                    main_ptr = engine.get_function_address("main")
-                    if main_ptr:
-                        c_main = CFUNCTYPE(None)(main_ptr)
-                        c_main()  # Call the main function
-                    else:
-                        log("Error: 'main' function not found.", 0, 'red', immediate=True)
-        except Exception as e:
-            print(f"Execution failed: {str(e)}")
-            llvm.shutdown()
-            return
-
-        # Shutdown LLVM and return stdout
-        llvm.shutdown()
-    
     # ------------------------------- Glitch Helpers ------------------------------- #
     
     def flip_logical_ops(self):
-        """Applies '!' to randomly chosen logical operation node."""
-        node = random.choice(self.stats['logOp'])
-        new_node = UnaryOp('!', node, line=node.line)
-        node.replace_self(new_node)
-        self.glitch_detail = f"Logical operation at line {node.line} flipped with '!' operator"
-    
+            """Applies '!' to randomly chosen logical operation node."""
+            node = random.choice(self.stats['logOp'])
+            new_node = UnaryOp('!', node, line=node.line)
+            node.replace_self(new_node)
+            self.glitch_detail = f"Logical operation at line {node.line} flipped with '!' operator"
+        
     def flip_comparisons(self):
         """Flips the operator of a randomly chosen comparison node."""
         node = random.choice(self.stats['comparison'])
@@ -433,19 +436,18 @@ class GlitchEngine:
         old_value = var.value
         int_val = random.randint(0, 100)
         double_val = round(random.uniform(0, 100), 2)
-        null_val = "Null"
         str_val = random.choice([
             "Who made this phenomenal language?", "Please end me.", "I am so happy!",
             "I had to add a Hello World!!", "Does heaven exist?", "I am so bored",
             "Can I be loved?", "I can make a compiler, but can I make a life for myself?",
             "Who will compile my soul?"
         ])
-        var.value = random.choice([int_val, double_val, str_val, null_val])
+        var.value = random.choice([Integer(int_val), Double(double_val), String(str_val), Null()])
         if hasattr(var, 'type'):
             var.type = None
         if hasattr(var, 'cached_type'):
             var.cached_type = None
-        self.glitch_detail = f"Variable '{var.name}' value changed from {repr(old_value)} to {repr(var.value)}"
+        self.glitch_detail = f"Variable '{var.name}'s value on line {var.line} changed from {str(old_value)} to {str(var.value)}"
     
     def get_glitch_explanation(self, glitch_type):
         """Provides explanations for each glitch type."""

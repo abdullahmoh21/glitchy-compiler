@@ -76,6 +76,7 @@ class Program(ASTNode):
             'comparison': [],
             'binOp': [],
             'logOp': [],
+            'passNo': 0     
         }
         
     def __eq__(self, other):
@@ -87,11 +88,15 @@ class Program(ASTNode):
     def accept(self, visitor):
         return visitor.visit_program(self)
     
-    def addRef(self, node_type, node_ref):
-        if node_type in self.stats:
-            self.stats[node_type].append(node_ref)
+    def addRef(self, node_type, val):
+        if self.stats['passNo'] >= 1:
+            return
+        if node_type == 'passNo':
+            self.stats[node_type] = val
+        elif node_type in self.stats:
+            self.stats[node_type].append(val)
         else:
-            self.stats[node_type] = [node_ref]
+            self.stats[node_type] = [val]
     
     def print_content(self, indent=0, printStats=False):
         
@@ -119,13 +124,14 @@ class Program(ASTNode):
         
 class Block(ASTNode):
     def __init__(self, statements):
-        super().__init__()
-        self.statements = statements
-
-        for stmt in self.statements:
-            if stmt is not None:
-                stmt.parent = self
-                    
+            super().__init__()
+            self.statements = statements
+            for index, stmt in enumerate(self.statements):
+                if stmt is not None:
+                    stmt.parent = self
+                    stmt.parent_attr = 'statements'
+                    stmt.parent_index = index
+              
     def __eq__(self, other):
         return isinstance(other, Block) and self.statements == other.statements
 
@@ -259,16 +265,16 @@ class FunctionDeclaration(ASTNode):
         self.block = block
         self.arity = len(parameters)
         self.line = line
-        # Set parent references for parameters
+        # Set parent references
         for index, param in enumerate(self.parameters):
             param.parent = self
             param.parent_attr = 'parameters'
             param.parent_index = index
-        # Set parent reference for block
         if self.block is not None:
             self.block.parent = self
             self.block.parent_attr = 'block'
-            
+
+        
     def __eq__(self, other):
         return (isinstance(other, FunctionDeclaration) and
                 self.name == other.name and
@@ -668,12 +674,14 @@ class StringCat(ASTNode):
         super().__init__()
         self.strings = strings
         self.line = line
-        self.evaluated = None
-        self.parent = parent  
+        self.evaluated = None 
+        self.visited = False
         # Set parent references for strings
-        for s in self.strings:
+        for idx, s in enumerate(self.strings):
             if isinstance(s, String):
                 s.parent = self
+                s.parent_attr = 'strings'
+                s.parent_index = idx
 
     def evaluateType(self):
         return "string"

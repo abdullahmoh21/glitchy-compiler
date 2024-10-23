@@ -15,7 +15,7 @@
 
 ## Overview
 
-Glitchy is an educational programming language developed to combine elements from my favorite languages while creating an engaging platform for learning both programming and compiler design. It's a Python-based Just-In-Time (JIT) compiler that compiles to LLVM Intermediate Representation (IR), providing real-time execution and high performance.
+Glitchy is an educational programming language designed to blend features from my favorite languages into an engaging platform for learning both programming and compiler design. Built with a Python-based multi-stage compiler that generates LLVM Intermediate Representation (IR), Glitchy leverages LLVM’s Just-In-Time (JIT) execution to provide real-time performance and high-efficiency code execution.
 
 One of the unique aspects of Glitchy is the incorporation of random "glitches," turning coding into an interactive challenge where users must troubleshoot unexpected behavior and learn through dynamic multiple-choice questions (MCQs).
 
