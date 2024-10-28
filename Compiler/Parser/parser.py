@@ -157,7 +157,6 @@ class Parser:
             )
             return True
     
-    # TODO: ensure works
     def identSuggestions(self):
         ident_name = {
             "print" : "Did you mean to call the print function? Please dont forget the enclosing parenthesis: 'print(...)'",
@@ -189,7 +188,6 @@ class Parser:
             return
         except Exception as e:
             throw(ParsingError(f"An unknown error occurred during parsing: {e}"),exit=False)
-        
         
         return Program(statements)
 

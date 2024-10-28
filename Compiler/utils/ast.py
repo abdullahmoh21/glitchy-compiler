@@ -1,9 +1,26 @@
+import copy
 class ASTNode:
     def __init__(self):
             self.parent = None
             self.parent_attr = None 
             self.parent_index = None  
-            
+    
+    def __deepcopy__(self, memo):
+        """
+        Generic deepcopy implementation for ASTNode.
+        Subclasses can override this method if needed.
+        """
+        cls = self.__class__
+        copied_node = cls.__new__(cls)
+        memo[id(self)] = copied_node
+        for attr, value in self.__dict__.items():
+            if attr in ['parent', 'parent_attr', 'parent_index']:
+                # These will be set by the parent during traversal
+                setattr(copied_node, attr, None)
+            else:
+                setattr(copied_node, attr, copy.deepcopy(value, memo))
+        return copied_node
+    
     def replace_self(self, new_node):
         """ Replaces "self"(the callee) with the new_node argument. If new_node is None will delete "self" instead """
         if not self.parent:
@@ -64,8 +81,8 @@ class Program(ASTNode):
                 stmt.parent_attr = 'statements'
                 stmt.parent_index = index
 
-        # This dict stores refs to nodes we might want to transform later.
-        self.stats = {
+        # stores refs to nodes we might transform later, reducing O(n) traversals
+        self.node_registry = {
             'if': [],
             'while': [],
             'funcDecl': [],
@@ -85,19 +102,151 @@ class Program(ASTNode):
     def __str__(self):
         return f"Program({self.statements})"
     
+    def __deepcopy__(self, memo):
+        """
+        Custom deepcopy method that copies the AST and populates node_registry in the copied AST.
+        """
+        cls = self.__class__
+        copied_program = cls.__new__(cls)
+        memo[id(self)] = copied_program
+        
+        # Initialize node_registry in the copied program
+        copied_program.node_registry = {
+            'if': [],
+            'while': [],
+            'funcDecl': [],
+            'funcCall': [],
+            'varDecl': [],
+            'varRef': [],
+            'varUpdate': [],
+            'comparison': [],
+            'binOp': [],
+            'logOp': [],
+            'return': [],
+            'passNo': self.node_registry['passNo']
+        }
+        
+        # Initialize registry in memo for child nodes to access
+        registry = copied_program.node_registry
+        memo['registry'] = registry  
+        
+        # Deep copy statements
+        copied_statements = []
+        for index, stmt in enumerate(self.statements):
+            if stmt is not None:
+                copied_stmt = copy.deepcopy(stmt, memo)
+                copied_stmt.parent = copied_program
+                copied_stmt.parent_attr = 'statements'
+                copied_stmt.parent_index = index
+                copied_statements.append(copied_stmt)
+                
+                # Add to node_registry if applicable (handled in child deepcopy)
+            else:
+                copied_statements.append(None)
+        
+        copied_program.statements = copied_statements
+        
+        # Remove registry from memo to avoid side effects
+        del memo['registry']
+        return copied_program
+    
+    def get_node_type(self, node):
+        """Helper method to determine the node type as a string key for node_registry."""
+        type_mapping = {
+            If: 'if',
+            While: 'while',
+            FunctionDeclaration: 'funcDecl',
+            FunctionCall: 'funcCall',
+            VariableDeclaration: 'varDecl',
+            VariableReference: 'varRef',
+            VariableUpdated: 'varUpdate',
+            Comparison: 'comparison',
+            BinaryOp: 'binOp',
+            LogicalOp: 'logOp',
+            Return: 'return'
+        }
+        return type_mapping.get(type(node), None)
+    
     def accept(self, visitor):
         return visitor.visit_program(self)
     
     def addRef(self, node_type, val):
-        if self.stats['passNo'] >= 1:
+        if self.node_registry['passNo'] >= 1:
             return
         if node_type == 'passNo':
-            self.stats[node_type] = val
-        elif node_type in self.stats:
-            self.stats[node_type].append(val)
+            self.node_registry[node_type] = val
+        elif node_type in self.node_registry:
+            self.node_registry[node_type].append(val)
         else:
-            self.stats[node_type] = [val]
+            self.node_registry[node_type] = [val]
     
+    def collect_refs(self):
+        """Collect references to nodes for direct access during glitching"""
+        pass_no = self.node_registry['passNo']
+        self.node_registry = {
+            'if': [],
+            'while': [],
+            'funcDecl': [],
+            'funcCall': [],
+            'varDecl': [],
+            'varRef': [],
+            'varUpdate': [],
+            'comparison': [],
+            'binOp': [],
+            'logOp': [],
+            'return': [],
+            'passNo': pass_no
+        }
+        for statement in self.statements:
+            self._traverse_and_collect(statement)
+
+    def _traverse_and_collect(self, node):
+        """Recursively traverse the AST and collect certain node references."""
+        if isinstance(node, If):
+            self.node_registry['if'].append(node)
+            self._traverse_and_collect(node.block)
+            for _ , block in node.elifNodes:
+                if block is not None:
+                    self._traverse_and_collect(block)
+            if node.elseBlock is not None:
+                self._traverse_and_collect(node.elseBlock)
+                
+        elif isinstance(node, While):
+            self.node_registry['while'].append(node)
+            self._traverse_and_collect(node.block)
+            
+        elif isinstance(node, FunctionDeclaration):
+            self.node_registry['funcDecl'].append(node)
+            self._traverse_and_collect(node.block)
+            
+        elif isinstance(node, FunctionCall):
+            self.node_registry['funcCall'].append(node)
+            
+        elif isinstance(node, VariableDeclaration):
+            self.node_registry['varDecl'].append(node)
+            
+        elif isinstance(node, VariableReference):
+            self.node_registry['varRef'].append(node)
+        
+        elif isinstance(node, VariableUpdated):
+            self.node_registry['varUpdate'].append(node)
+        
+        elif isinstance(node, Comparison):
+            self.node_registry['comparison'].append(node)
+        
+        elif isinstance(node, BinaryOp):
+            self.node_registry['binOp'].append(node)
+        
+        elif isinstance(node, LogicalOp):
+            self.node_registry['logOp'].append(node)
+
+        elif isinstance(node, Return):
+            self.node_registry['return'].append(node)
+        
+        elif isinstance(node, Block):
+            for statement in node.statements:
+                self._traverse_and_collect(statement)
+        
     def print_content(self, indent=0, printStats=False):
         
         if printStats:
@@ -138,6 +287,27 @@ class Block(ASTNode):
     def __str__(self):
         return f"Block({self.statements})"
 
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        copied_block = cls.__new__(cls)
+        memo[id(self)] = copied_block
+
+        # Deep copy the statements and set parent references
+        copied_statements = []
+        for index, stmt in enumerate(self.statements):
+            if stmt is not None:
+                copied_stmt = copy.deepcopy(stmt, memo)
+                copied_stmt.parent = copied_block
+                copied_stmt.parent_attr = 'statements'
+                copied_stmt.parent_index = index
+                copied_statements.append(copied_stmt)
+            else:
+                copied_statements.append(None)
+
+        copied_block.statements = copied_statements
+
+        return copied_block
+
     def accept(self, visitor):
         return visitor.visit_block(self)
 
@@ -159,12 +329,7 @@ class VariableDeclaration(ASTNode):
         if self.value is not None:
             self.value.parent = self
             self.value.parent_attr = 'value'
-    
-    def evaluateType(self):
-        if self.value is not None:
-            return self.value.evaluateType()
-        return "invalid"
-    
+ 
     def __eq__(self, other):
         return (isinstance(other, VariableDeclaration) and
                 self.name == other.name and
@@ -176,6 +341,35 @@ class VariableDeclaration(ASTNode):
     def __repr__(self):
         return f"VariableDeclaration('{self.name}')"
         
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        copied_var_decl = cls.__new__(cls)
+        memo[id(self)] = copied_var_decl
+
+        # Copy attributes
+        copied_var_decl.name = copy.deepcopy(self.name, memo)
+        copied_var_decl.value = copy.deepcopy(self.value, memo)
+        copied_var_decl.annotation = copy.deepcopy(self.annotation, memo)
+        copied_var_decl.line = self.line
+
+        # Set parent references
+        if copied_var_decl.value is not None:
+            copied_var_decl.value.parent = copied_var_decl
+            copied_var_decl.value.parent_attr = 'value'
+
+        # Register the copied variable declaration in the node registry
+        registry = memo.get('registry', None)
+        if registry is not None:
+            registry['varDecl'].append(copied_var_decl)
+
+        return copied_var_decl
+    
+    def evaluateType(self):
+        if self.value is not None:
+            return self.value.evaluateType()
+        return "invalid"
+    
+    
     def accept(self, visitor):
             return visitor.visit_variable(self)
 
@@ -199,11 +393,6 @@ class VariableReference(ASTNode):
         self.type = None
         self.scope = None
         
-    def evaluateType(self):
-        if self.type is not None:
-            return self.type
-        return 'invalid'
-        
     def __eq__(self, other):
         return (isinstance(other, VariableReference) and self.name == other.name)
         
@@ -213,6 +402,30 @@ class VariableReference(ASTNode):
     def __repr__(self):
         return  f"VariableReference({self.name})"
     
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        copied_var_ref = cls.__new__(cls)
+        memo[id(self)] = copied_var_ref
+
+        # Copy attributes
+        copied_var_ref.name = copy.deepcopy(self.name, memo)
+        copied_var_ref.line = self.line
+        copied_var_ref.value = copy.deepcopy(self.value, memo)
+        copied_var_ref.type = copy.deepcopy(self.type, memo)
+        copied_var_ref.scope = copy.deepcopy(self.scope, memo)
+
+        # Register the copied variable reference in the node registry
+        registry = memo.get('registry', None)
+        if registry is not None:
+            registry['varRef'].append(copied_var_ref)
+
+        return copied_var_ref
+
+    def evaluateType(self):
+        if self.type is not None:
+            return self.type
+        return 'invalid'
+        
     def accept(self, visitor):
         return visitor.visit_variable(self)
 
@@ -229,12 +442,7 @@ class VariableUpdated(ASTNode):
         if self.value is not None:
             self.value.parent = self
             self.value.parent_attr = 'value'
-    
-    def evaluateType(self):
-        if self.value is not None:
-            return self.value.evaluateType()
-        return "invalid"
-    
+ 
     def __eq__(self, other):
         return (isinstance(other, VariableUpdated) and
                 self.name == other.name and
@@ -245,6 +453,30 @@ class VariableUpdated(ASTNode):
     
     def __repr__(self):
         return f"VariableUpdated({str(self.name)})"
+    
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        copied_var_updated = cls.__new__(cls)
+        memo[id(self)] = copied_var_updated
+
+        copied_var_updated.name = copy.deepcopy(self.name, memo)
+        copied_var_updated.value = copy.deepcopy(self.value, memo)
+        copied_var_updated.line = self.line
+
+        if copied_var_updated.value is not None:
+            copied_var_updated.value.parent = copied_var_updated
+            copied_var_updated.value.parent_attr = 'value'
+
+        registry = memo.get('registry', None)
+        if registry is not None:
+            registry['varUpdate'].append(copied_var_updated)
+
+        return copied_var_updated
+
+    def evaluateType(self):
+        if self.value is not None:
+            return self.value.evaluateType()
+        return "invalid"
         
     def accept(self, visitor):
         return visitor.visit_variable(self)
@@ -274,7 +506,6 @@ class FunctionDeclaration(ASTNode):
             self.block.parent = self
             self.block.parent_attr = 'block'
 
-        
     def __eq__(self, other):
         return (isinstance(other, FunctionDeclaration) and
                 self.name == other.name and
@@ -287,6 +518,34 @@ class FunctionDeclaration(ASTNode):
     
     def __repr__(self):
         return f"FunctionDeclaration({str(self.name)})"
+    
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        copied_func_decl = cls.__new__(cls)
+        memo[id(self)] = copied_func_decl
+
+        copied_func_decl.name = copy.deepcopy(self.name, memo)
+        copied_func_decl.return_type = copy.deepcopy(self.return_type, memo)
+        copied_func_decl.parameters = copy.deepcopy(self.parameters, memo)
+        copied_func_decl.block = copy.deepcopy(self.block, memo)
+        copied_func_decl.arity = self.arity
+        copied_func_decl.line = self.line
+
+        for index, param in enumerate(copied_func_decl.parameters):
+            param.parent = copied_func_decl
+            param.parent_attr = 'parameters'
+            param.parent_index = index
+
+        if copied_func_decl.block is not None:
+            copied_func_decl.block.parent = copied_func_decl
+            copied_func_decl.block.parent_attr = 'block'
+
+        registry = memo.get('registry', None)
+        if registry is not None:
+            registry['funcDecl'].append(copied_func_decl)
+
+        return copied_func_decl
+
     
     def accept(self, visitor):
         return visitor.visit_function_declaration(self)
@@ -306,11 +565,6 @@ class Return(ASTNode):
         if self.value is not None:
             self.value.parent = self
             self.value.parent_attr = 'value'
-     
-    def evaluateType(self):
-        if self.value is not None:
-            return self.value.evaluateType()
-        return 'invalid'
     
     def __str__(self):
         return f"{str(self.value)}"
@@ -320,6 +574,31 @@ class Return(ASTNode):
 
     def __eq__(self, other):
         return isinstance(other, Return) and self.value == other.value
+    
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        copied_return = cls.__new__(cls)
+        memo[id(self)] = copied_return
+
+        copied_return.value = copy.deepcopy(self.value, memo)
+        copied_return.line = self.line
+
+        if copied_return.value is not None:
+            copied_return.value.parent = copied_return
+            copied_return.value.parent_attr = 'value'
+
+        registry = memo.get('registry', None)
+        if registry is not None:
+            registry['return'].append(copied_return)
+
+        return copied_return
+    
+     
+    def evaluateType(self):
+        if self.value is not None:
+            return self.value.evaluateType()
+        return 'invalid'
+    
     
     def accept(self, visitor):
         return visitor.visit_return(self)
@@ -386,62 +665,6 @@ class FunctionCall(ASTNode):
             arg.parent_attr = 'args'
             arg.parent_index = index
     
-    def evaluateType(self):
-        if self.type is not None:
-            return self.type
-        return 'invalid'
-    
-    def accept(self, visitor):
-        return visitor.visit_function_call(self)
-    
-    def replace_with(self, new_node):
-        attrs = ['value', 'receiver', 'arguments', 'left','right'] 
-
-        def recursive_replace(node, parent, attr_name):
-            """ Recursively search for and replace `self` within specified attributes. """
-            if isinstance(node, (list, tuple)):
-                for index, item in enumerate(node):
-                    if item == self:
-                        if isinstance(node, list):
-                            node[index] = new_node
-                        else:
-                            node = node[:index] + (new_node,) + node[index + 1:]
-                            setattr(parent, attr_name, node)
-                        return True
-                    for attr in attrs:
-                        if hasattr(item, attr):
-                            if recursive_replace(getattr(item, attr), item, attr):
-                                return True
-            elif isinstance(node, dict):
-                for key, item in node.items():
-                    if item == self:
-                        node[key] = new_node
-                        return True
-                    for attr in attrs:
-                        if hasattr(item, attr):
-                            if recursive_replace(getattr(item, attr), item, attr):
-                                return True
-            elif node == self:
-                setattr(parent, attr_name, new_node)
-                return True
-            else:
-                for attr in attrs:
-                    if hasattr(node, attr):
-                        if recursive_replace(getattr(node, attr), node, attr):
-                            return True
-            return False
-
-        if self.parent:
-            # Look through all attributes of the parent object
-            for attr, value in vars(self.parent).items():
-                if recursive_replace(value, self.parent, attr):
-                    new_node.parent = self.parent
-                    self.transformed = True
-                    del self
-                    return
-
-            new_node.parent = self.parent
-    
     def __eq__(self, other):
         return (isinstance(other, FunctionCall) and
                 self.name == other.name and
@@ -455,6 +678,37 @@ class FunctionCall(ASTNode):
     def __repr__(self):
         return f"FunctionCall({str(self.name)})"
     
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        copied_func_call = cls.__new__(cls)
+        memo[id(self)] = copied_func_call
+
+        copied_func_call.name = copy.deepcopy(self.name, memo)
+        copied_func_call.args = copy.deepcopy(self.args, memo)
+        copied_func_call.arity = self.arity
+        copied_func_call.line = self.line
+        copied_func_call.type = copy.deepcopy(self.type, memo)
+        copied_func_call.transformed = copy.deepcopy(self.transformed, memo)
+
+        for index, arg in enumerate(copied_func_call.args):
+            arg.parent = copied_func_call
+            arg.parent_attr = 'args'
+            arg.parent_index = index
+
+        registry = memo.get('registry', None)
+        if registry is not None:
+            registry['funcCall'].append(copied_func_call)
+
+        return copied_func_call
+
+    def evaluateType(self):
+        if self.type is not None:
+            return self.type
+        return 'invalid'
+    
+    def accept(self, visitor):
+        return visitor.visit_function_call(self)
+
     def print_content(self, indent=0):
         print(" " * indent + f"FunctionCall: {self.name}")
         if self.parent is not None:
@@ -475,13 +729,7 @@ class Argument(ASTNode):
         if self.value is not None and isinstance(self.value, ASTNode):
             self.value.parent = self
             self.value.parent_attr = "value"
-    
-    def evaluateType(self):
-        if self.cached_type is not None:
-            return self.cached_type
-        else:
-            return self.value.evaluateType()
-    
+  
     def __str__(self):
         if isinstance(self.value, list):
             list_str = ', '.join(str(item) for item in self.value)
@@ -498,6 +746,29 @@ class Argument(ASTNode):
 
     def __eq__(self, other):
         return isinstance(other, Argument) and self.type == other.type
+    
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        copied_argument = cls.__new__(cls)
+        memo[id(self)] = copied_argument
+
+        copied_argument.name = copy.deepcopy(self.name, memo)
+        copied_argument.value = copy.deepcopy(self.value, memo)
+        copied_argument.cached_type = copy.deepcopy(self.cached_type, memo)
+
+        if copied_argument.value is not None and isinstance(copied_argument.value, ASTNode):
+            copied_argument.value.parent = copied_argument
+            copied_argument.value.parent_attr = "value"
+
+        return copied_argument
+  
+      
+    def evaluateType(self):
+        if self.cached_type is not None:
+            return self.cached_type
+        else:
+            return self.value.evaluateType()
+    
     
     def accept(self, visitor):
         return visitor.visit_argument(self)
@@ -521,11 +792,6 @@ class MethodCall(ASTNode):
         for arg in self.args:
             arg.parent = self
     
-    def evaluateType(self):
-        if self.return_type is not None:
-            return self.return_type
-        return 'invalid'
-    
     def __eq__(self, other):
         return (isinstance(other, MethodCall) and
                 self.receiver == other.receiver and
@@ -538,7 +804,33 @@ class MethodCall(ASTNode):
 
     def __repr__(self):
         return f"MethodCall({str(self.receiver)}.{str(self.name)}(...))"
-        
+    
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        copied_method_call = cls.__new__(cls)
+        memo[id(self)] = copied_method_call
+
+        copied_method_call.receiver = copy.deepcopy(self.receiver, memo)
+        copied_method_call.name = copy.deepcopy(self.name, memo)
+        copied_method_call.args = copy.deepcopy(self.args, memo)
+        copied_method_call.receiverTy = copy.deepcopy(self.receiverTy, memo)
+        copied_method_call.line = self.line
+
+        if copied_method_call.receiver is not None:
+            copied_method_call.receiver.parent = copied_method_call
+
+        for index, arg in enumerate(copied_method_call.args):
+            arg.parent = copied_method_call
+            arg.parent_attr = 'args'
+            arg.parent_index = index
+
+        return copied_method_call
+    
+    def evaluateType(self):
+        if self.return_type is not None:
+            return self.return_type
+        return 'invalid'
+    
     def accept(self, visitor):
         return visitor.visit_method_call(self)
     
@@ -606,6 +898,50 @@ class If(ASTNode):
     def __repr__(self):
         return f"If({repr(self.comparison)})"
     
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        copied_if = cls.__new__(cls)
+        memo[id(self)] = copied_if
+        
+        copied_if.comparison = copy.deepcopy(self.comparison, memo)
+        copied_if.line = self.line
+        
+        registry = memo.get('registry', None)
+        
+        # Deep copy block
+        if self.block is not None:
+            copied_if.block = copy.deepcopy(self.block, memo)
+            copied_if.block.parent = copied_if
+            copied_if.block.parent_attr = 'block'
+            copied_if.block.parent_index = None  # Not in a list
+        else:
+            copied_if.block = None
+        
+        # Deep copy elifNodes
+        copied_if.elifNodes = []
+        for cond, blk in self.elifNodes:
+            copied_cond = copy.deepcopy(cond, memo)
+            copied_blk = copy.deepcopy(blk, memo) if blk else None
+            if copied_blk:
+                copied_blk.parent = copied_if
+                copied_blk.parent_attr = 'elifNodes'
+                copied_blk.parent_index = len(copied_if.elifNodes)
+            copied_if.elifNodes.append((copied_cond, copied_blk))
+        
+        # Deep copy elseBlock
+        if self.elseBlock is not None:
+            copied_if.elseBlock = copy.deepcopy(self.elseBlock, memo)
+            copied_if.elseBlock.parent = copied_if
+            copied_if.elseBlock.parent_attr = 'elseBlock'
+            copied_if.elseBlock.parent_index = None
+        else:
+            copied_if.elseBlock = None
+        
+        if registry is not None:
+            registry['if'].append(copied_if)
+        
+        return copied_if
+    
     def accept(self, visitor):
         return visitor.visit_if(self)
     
@@ -660,6 +996,30 @@ class While(ASTNode):
     def __repr__(self):
         return f"While({repr(self.comparison)})"
         
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        copied_while = cls.__new__(cls)
+        memo[id(self)] = copied_while
+
+        copied_while.comparison = copy.deepcopy(self.comparison, memo)
+        copied_while.block = copy.deepcopy(self.block, memo)
+        copied_while.line = self.line
+
+        if copied_while.comparison is not None:
+            copied_while.comparison.parent = copied_while
+            copied_while.comparison.parent_attr = 'comparison'
+
+        if copied_while.block is not None:
+            copied_while.block.parent = copied_while
+            copied_while.block.parent_attr = 'block'
+
+        registry = memo.get('registry', None)
+        if registry is not None:
+            registry['while'].append(copied_while)
+
+        return copied_while
+
+        
     def accept(self, visitor):
         return visitor.visit_while(self)
     
@@ -669,8 +1029,7 @@ class While(ASTNode):
         self.block.print_content(indent + 2)
        
 class StringCat(ASTNode):
-    """ Holds string concatenations. Will be transformed from BinaryOps. The strings array holds all the values to be concatenated """
-    def __init__(self, strings, parent, line=None):
+    def __init__(self, strings, line=None):
         super().__init__()
         self.strings = strings
         self.line = line
@@ -683,12 +1042,6 @@ class StringCat(ASTNode):
                 s.parent_attr = 'strings'
                 s.parent_index = idx
 
-    def evaluateType(self):
-        return "string"
-
-    def accept(self, visitor):
-        return visitor.visit_string_cat(self)
-    
     def __str__(self):
         _ = f"{str(self.evaluated)}" if self.evaluated is not None else f"{str(self.strings)}"
         return f"{ _ }"
@@ -703,6 +1056,30 @@ class StringCat(ASTNode):
                 self.strings == other.strings and
                 self.evaluated == other.evaluated)
 
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        copied_string_cat = cls.__new__(cls)
+        memo[id(self)] = copied_string_cat
+
+        copied_string_cat.strings = copy.deepcopy(self.strings, memo)
+        copied_string_cat.line = self.line
+        copied_string_cat.evaluated = copy.deepcopy(self.evaluated, memo)
+        copied_string_cat.visited = self.visited
+
+        for idx, s in enumerate(copied_string_cat.strings):
+            if isinstance(s, String):
+                s.parent = copied_string_cat
+                s.parent_attr = 'strings'
+                s.parent_index = idx
+
+        return copied_string_cat
+    
+    def evaluateType(self):
+        return "string"
+
+    def accept(self, visitor):
+        return visitor.visit_string_cat(self)
+    
     def print_content(self, indent=0):
         _ = "True" if self.evaluated is not None else "False"
         print(" " * indent + f"StringCat (evaluated: {_})")
@@ -740,6 +1117,9 @@ class Expression(ASTNode):
     def __str__(self):
         raise NotImplementedError("Subclasses should implement this!")
     
+    def __deepcopy__(self, memo):
+        raise NotImplementedError("Subclasses should implement this!")
+
     def print_content(self, indent=0):
         print(" " * indent + "Expression")
         self.left.print_content(indent + 2)
@@ -751,8 +1131,46 @@ class BinaryOp(Expression):
     def __init__(self, left, operator, right, line=None):
         super().__init__(left, operator, right, line)
         self.cached_type = None
-        self.transformed = None     # flag to know if binaryOp has been transformed
+        self.transformed = None    
 
+    def __str__(self):
+        return f"{str(self.left)} '{self.operator}' {str(self.right)}"
+ 
+    def __repr__(self):
+        return f"BinaryOp({repr(self.left)} '{self.operator}' {repr(self.right)})"
+
+    def __eq__(self, other):
+        return (isinstance(other, BinaryOp) and
+                self.left == other.left and
+                self.operator == other.operator and
+                self.right == other.right)
+    
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        copied_binary_op = cls.__new__(cls)
+        memo[id(self)] = copied_binary_op
+
+        copied_binary_op.left = copy.deepcopy(self.left, memo)
+        copied_binary_op.operator = copy.deepcopy(self.operator, memo)
+        copied_binary_op.right = copy.deepcopy(self.right, memo)
+        copied_binary_op.line = self.line
+        copied_binary_op.cached_type = copy.deepcopy(self.cached_type, memo)
+        copied_binary_op.transformed = copy.deepcopy(self.transformed, memo)
+
+        if copied_binary_op.left is not None:
+            copied_binary_op.left.parent = copied_binary_op
+            copied_binary_op.left.parent_attr = 'left'
+
+        if copied_binary_op.right is not None:
+            copied_binary_op.right.parent = copied_binary_op
+            copied_binary_op.right.parent_attr = 'right'
+
+        registry = memo.get('registry', None)
+        if registry is not None:
+            registry['binOp'].append(copied_binary_op)
+
+        return copied_binary_op
+    
     def evaluateType(self):
         if self.cached_type is not None:
             return self.cached_type
@@ -776,33 +1194,172 @@ class BinaryOp(Expression):
     def accept(self, visitor):
         return visitor.visit_binary_op(self)
 
-    def __str__(self):
-        return f"{str(self.left)} '{self.operator}' {str(self.right)}"
- 
-    def __repr__(self):
-        return f"BinaryOp({repr(self.left)} '{self.operator}' {repr(self.right)})"
-
-    def __eq__(self, other):
-        return (isinstance(other, BinaryOp) and
-                self.left == other.left and
-                self.operator == other.operator and
-                self.right == other.right)
-
     def print_content(self, indent=0):
         print(" " * indent + f"BinaryOp (Operator {self.operator})")
         self.left.print_content(indent + 2)
         self.right.print_content(indent + 2)
+
+# for < > <= >= == !=
+class Comparison(Expression):
+    def __init__(self, left, operator, right, line=None):
+        super().__init__(left, operator, right, line)
+        self._cached_type = None
+  
+    def __str__(self):
+        return f"{str(self.left)} '{self.operator}' {str(self.right)}"
+    
+    def __repr__(self):
+        return f"Comparison({repr(self.left)} '{self.operator}' {repr(self.right)})"
+    
+    def __eq__(self, other):
+        return (isinstance(other, Comparison) and
+                self.left == other.left and
+                self.operator == other.operator and
+                self.right == other.right)
+    
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        copied_comparison = cls.__new__(cls)
+        memo[id(self)] = copied_comparison
+
+        copied_comparison.left = copy.deepcopy(self.left, memo)
+        copied_comparison.operator = copy.deepcopy(self.operator, memo)
+        copied_comparison.right = copy.deepcopy(self.right, memo)
+        copied_comparison.line = self.line
+        copied_comparison._cached_type = copy.deepcopy(self._cached_type, memo)
+
+        if copied_comparison.left is not None:
+            copied_comparison.left.parent = copied_comparison
+            copied_comparison.left.parent_attr = 'left'
+
+        if copied_comparison.right is not None:
+            copied_comparison.right.parent = copied_comparison
+            copied_comparison.right.parent_attr = 'right'
+
+        registry = memo.get('registry', None)
+        if registry is not None:
+            registry['comparison'].append(copied_comparison)
+
+        return copied_comparison
+
+    def evaluateType(self):
+        if self._cached_type is not None:
+            return self._cached_type 
+        
+        left_type = self.left.evaluateType()
+        right_type = self.right.evaluateType()
+        if left_type not in ['integer', 'double','string','boolean'] or right_type not in ['integer', 'double','string','boolean']:
+            return "invalid"
+        self._cached_type = 'boolean'
+        return self._cached_type
+    
+    def accept(self, visitor):
+        return visitor.visit_comparison(self)
+    
+    def print_content(self, indent=0):
+        print(" " * indent + f"Comparison (Operator: {self.operator})")
+        self.left.print_content(indent + 2)
+        self.right.print_content(indent + 2)
+
+# for && ||
+class LogicalOp(Expression):
+    def __init__(self, left, operator, right, line= None):
+        super().__init__(left, operator, right, line)
+        self._cached_type = None
+
+    def __str__(self):
+        return f"'{str(self.left)}' '{self.operator}' '{str(self.right)}'"
+    
+    def __repr__(self):
+        return f"LogicalOp('{repr(self.left)}' '{self.operator}' '{repr(self.right)}')"
+
+    def __eq__(self, other):
+        return (isinstance(other, LogicalOp) and
+                self.left == other.left and
+                self.operator == other.operator and
+                self.right == other.right)
+    
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        copied_logical_op = cls.__new__(cls)
+        memo[id(self)] = copied_logical_op
+
+        copied_logical_op.left = copy.deepcopy(self.left, memo)
+        copied_logical_op.operator = copy.deepcopy(self.operator, memo)
+        copied_logical_op.right = copy.deepcopy(self.right, memo)
+        copied_logical_op.line = self.line
+        copied_logical_op._cached_type = copy.deepcopy(self._cached_type, memo)
+
+        if copied_logical_op.left is not None:
+            copied_logical_op.left.parent = copied_logical_op
+            copied_logical_op.left.parent_attr = 'left'
+
+        if copied_logical_op.right is not None:
+            copied_logical_op.right.parent = copied_logical_op
+            copied_logical_op.right.parent_attr = 'right'
+
+        registry = memo.get('registry', None)
+        if registry is not None:
+            registry['logOp'].append(copied_logical_op)
+
+        return copied_logical_op
+    
+    def evaluateType(self):
+        if self._cached_type is not None:
+            return self._cached_type 
+        
+        left_type = self.left.evaluateType()
+        right_type = self.right.evaluateType()
+        if left_type != 'boolean' or right_type != 'boolean':
+            return "invalid"
+        
+        self._cached_type = 'boolean'
+        return self._cached_type
+    
+    def accept(self, visitor):
+        return visitor.visit_logical_op(self)
+    
+    def print_content(self, indent=0):
+        print(" " * indent + f"LogicalOp (Operator: {self.operator})")
+        self.left.print_content(indent + 2)
+        self.right.print_content(indent + 2)        
    
 # for -5 / +5 and !
 class UnaryOp(Expression):
     def __init__(self, operator, left, line=None):
         super().__init__(left, operator, None, line)
         self._cached_type = None
-        # Set parent reference
         if self.left is not None:
             self.left.parent = self
             self.left.parent_attr = 'left'
 
+    def __str__(self):
+        return f"'{self.operator}{self.left}'"
+
+    def __repr__(self):
+        return f"UnaryOp({self.operator}{repr(self.left)})"
+
+    def __eq__(self, other):
+        return (isinstance(other, UnaryOp) and
+                self.operator == other.operator and
+                self.left == other.left)
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        copied_unary_op = cls.__new__(cls)
+        memo[id(self)] = copied_unary_op
+
+        copied_unary_op.operator = copy.deepcopy(self.operator, memo)
+        copied_unary_op.left = copy.deepcopy(self.left, memo)
+        copied_unary_op.line = self.line
+        copied_unary_op._cached_type = copy.deepcopy(self._cached_type, memo)
+
+        if copied_unary_op.left is not None:
+            copied_unary_op.left.parent = copied_unary_op
+            copied_unary_op.left.parent_attr = 'left'
+
+        return copied_unary_op
+    
     def evaluateType(self):
         if self._cached_type is not None:
             return self._cached_type
@@ -822,95 +1379,9 @@ class UnaryOp(Expression):
     def accept(self, visitor):
         return visitor.visit_unary_op(self)
     
-    def __str__(self):
-        return f"'{self.operator}{self.left}'"
-
-    def __repr__(self):
-        return f"UnaryOp({self.operator}{repr(self.left)})"
-
-    def __eq__(self, other):
-        return (isinstance(other, UnaryOp) and
-                self.operator == other.operator and
-                self.left == other.left)
-
     def print_content(self, indent=0):
         print(" " * indent + f"UnaryOp (Operator: {self.operator})")
         self.left.print_content(indent + 2)
-
-# for < > <= >= == !=
-class Comparison(Expression):
-    def __init__(self, left, operator, right, line=None):
-        super().__init__(left, operator, right, line)
-        self._cached_type = None
-    
-    def evaluateType(self):
-        if self._cached_type is not None:
-            return self._cached_type 
-        
-        left_type = self.left.evaluateType()
-        right_type = self.right.evaluateType()
-        if left_type not in ['integer', 'double','string','boolean'] or right_type not in ['integer', 'double','string','boolean']:
-            return "invalid"
-        self._cached_type = 'boolean'
-        return self._cached_type
-    
-    def accept(self, visitor):
-        return visitor.visit_comparison(self)
-    
-    def __str__(self):
-        return f"{str(self.left)} '{self.operator}' {str(self.right)}"
-    
-    def __repr__(self):
-        return f"Comparison({repr(self.left)} '{self.operator}' {repr(self.right)})"
-    
-    def __eq__(self, other):
-        return (isinstance(other, Comparison) and
-                self.left == other.left and
-                self.operator == other.operator and
-                self.right == other.right)
-    
-    def print_content(self, indent=0):
-        print(" " * indent + f"Comparison (Operator: {self.operator})")
-        self.left.print_content(indent + 2)
-        self.right.print_content(indent + 2)
-
-# for && ||
-class LogicalOp(Expression):
-    def __init__(self, left, operator, right, line= None):
-        super().__init__(left, operator, right, line)
-        self._cached_type = None
-
-    def evaluateType(self):
-        if self._cached_type is not None:
-            return self._cached_type 
-        
-        left_type = self.left.evaluateType()
-        right_type = self.right.evaluateType()
-        if left_type != 'boolean' or right_type != 'boolean':
-            return "invalid"
-        
-        self._cached_type = 'boolean'
-        return self._cached_type
-    
-    def accept(self, visitor):
-        return visitor.visit_logical_op(self)
-    
-    def __str__(self):
-        return f"'{str(self.left)}' '{self.operator}' '{str(self.right)}'"
-    
-    def __repr__(self):
-        return f"LogicalOp('{repr(self.left)}' '{self.operator}' '{repr(self.right)}')"
-
-    def __eq__(self, other):
-        return (isinstance(other, LogicalOp) and
-                self.left == other.left and
-                self.operator == other.operator and
-                self.right == other.right)
-    
-    def print_content(self, indent=0):
-        print(" " * indent + f"LogicalOp (Operator: {self.operator})")
-        self.left.print_content(indent + 2)
-        self.right.print_content(indent + 2)        
 
 # ------------------------- Literals ------------------------- #
 

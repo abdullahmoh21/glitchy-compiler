@@ -27,7 +27,7 @@ class SemanticAnalyzer:
         except Exception as e:
             throw(SemanticError(e))
         
-        curPassNo = self.ast.stats['passNo']
+        curPassNo = self.ast.node_registry['passNo']
         self.ast.addRef('passNo', (curPassNo+1))
         return self.glitchPresent, self.symbolTable
         
@@ -482,7 +482,7 @@ class SemanticAnalyzer:
         """
         if isinstance(node, BinaryOp):
             strings = self._collectStrings(node)
-            string_cat_node = StringCat(strings=strings, parent=node.parent, line=node.line)
+            string_cat_node = StringCat(strings=strings, line=node.line)
 
             node.replace_self(string_cat_node)
             node.transformed = True
