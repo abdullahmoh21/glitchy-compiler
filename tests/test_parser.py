@@ -16,7 +16,7 @@ class TestParser(unittest.TestCase):
         '''
         expected_ast = Program([
             VariableDeclaration("x", Integer(42), 2),
-            FunctionCall('print', [Argument(String("Hello, world"))], None, 3)
+            FunctionCall('print', [Argument(String("Hello, world"))], 3)
         ])
         self.run_test(source_code, expected_ast)
 
@@ -32,7 +32,7 @@ class TestParser(unittest.TestCase):
             If(
                 Comparison(VariableReference("x", 3), "==", Integer(10, 3), 3),
                 Block([
-                    FunctionCall('print',[Argument(String("x is ten"))],None,line=4)
+                    FunctionCall('print',[Argument(String("x is ten"))],line=4)
                 ]),
                 3
             )
@@ -55,18 +55,18 @@ class TestParser(unittest.TestCase):
             If(
                 Comparison(VariableReference("x", 3), ">", Integer(10, 3), 3),
                 Block([
-                    FunctionCall('print',[Argument(String("x is greater than ten"))], None,4 )
+                    FunctionCall('print',[Argument(String("x is greater than ten"))],4 )
                 ]),
                 elifNodes=[
                     (
                         Comparison(VariableReference("x", 5), "<", Integer(10, 5), 5),
                         Block([
-                            FunctionCall('print',[Argument(String("x is less than ten"))], None,6 )
+                            FunctionCall('print',[Argument(String("x is less than ten"))],6 )
                         ])
                     )
                 ],
                 elseBlock=Block([
-                    FunctionCall('print',[Argument(String("x is ten"))], None,8 )
+                    FunctionCall('print',[Argument(String("x is ten"))],8 )
                 ]),
                 line=3
             )
@@ -97,7 +97,7 @@ class TestParser(unittest.TestCase):
                             If(
                                 Comparison(VariableReference("x", 5), "==", Integer(10, 5), 5),
                                 Block([
-                                    FunctionCall('print',[Argument(String("x is ten"))], None, 6)
+                                    FunctionCall('print',[Argument(String("x is ten"))], 6)
                                 ]),
                                 5
                             )
@@ -138,9 +138,9 @@ class TestParser(unittest.TestCase):
         '''
         expected_ast = Program([
             VariableDeclaration('foo',
-                FunctionCall('input',[],None, line=2)
+                FunctionCall('input',[], line=2)
             ),
-            FunctionCall('print',[Argument((VariableReference("foo")))], None, 3)
+            FunctionCall('print',[Argument((VariableReference("foo")))], 3)
         ])
         self.run_test(source_code, expected_ast)
 
@@ -480,7 +480,7 @@ class TestParser(unittest.TestCase):
                     If(
                         Comparison(VariableReference("y", 5), "==", Integer(2, 5), 5),
                         Block([
-                            FunctionCall('print',[Argument(String("y is two"))], None, 6)
+                            FunctionCall('print',[Argument(String("y is two"))], 6)
                         ]),
                         5
                     )
@@ -551,7 +551,7 @@ class TestParser(unittest.TestCase):
                 While(
                     Comparison(VariableReference("i", 2), "<", Integer(10, 2), 2),  # Condition
                     Block([
-                        FunctionCall('print',[Argument(String("Looping"))], None, 3),
+                        FunctionCall('print',[Argument(String("Looping"))], 3),
                         VariableUpdated("i",BinaryOp(VariableReference("i", 3), "+", Integer(2, 3), 3), 3)  # Increment
                     ]),
                     2
@@ -572,7 +572,7 @@ class TestParser(unittest.TestCase):
                 While(
                     Comparison(VariableReference("i", 2), "<", Integer(10, 2), 2),  # Condition
                     Block([
-                        FunctionCall('print',[Argument(String("Looping"))], None, 3),
+                        FunctionCall('print',[Argument(String("Looping"))], 3),
                         VariableUpdated("i", BinaryOp(VariableReference("i", 3), "+", Integer(1, 3), 3), 3)  # Increment
                     ]),
                     2

@@ -369,7 +369,6 @@ class VariableDeclaration(ASTNode):
             return self.value.evaluateType()
         return "invalid"
     
-    
     def accept(self, visitor):
             return visitor.visit_variable(self)
 
@@ -545,7 +544,6 @@ class FunctionDeclaration(ASTNode):
             registry['funcDecl'].append(copied_func_decl)
 
         return copied_func_decl
-
     
     def accept(self, visitor):
         return visitor.visit_function_declaration(self)
@@ -818,6 +816,8 @@ class MethodCall(ASTNode):
 
         if copied_method_call.receiver is not None:
             copied_method_call.receiver.parent = copied_method_call
+            copied_method_call.receiver.parent_attr = 'receiver'
+            copied_method_call.receiver.parent_index = None
 
         for index, arg in enumerate(copied_method_call.args):
             arg.parent = copied_method_call
@@ -862,11 +862,13 @@ class If(ASTNode):
         if self.comparison is not None:
             self.comparison.parent = self
             self.comparison.parent_attr = 'comparison'
+            self.comparison.parent_index = None
 
         # Set parent reference and context for the main block
         if self.block is not None:
             self.block.parent = self
             self.block.parent_attr = 'block'
+            self.comparison.parent_index = None
 
         # Set parent reference and context for elif nodes
         for index, (elif_comparison, elif_block) in enumerate(self.elifNodes):
@@ -899,16 +901,23 @@ class If(ASTNode):
         return f"If({repr(self.comparison)})"
     
     def __deepcopy__(self, memo):
+    
         cls = self.__class__
         copied_if = cls.__new__(cls)
         memo[id(self)] = copied_if
         
+        # Deep copy comparison and set parent references
         copied_if.comparison = copy.deepcopy(self.comparison, memo)
+        if copied_if.comparison is not None:
+            copied_if.comparison.parent = copied_if
+            copied_if.comparison.parent_attr = 'comparison'
+            copied_if.comparison.parent_index = None  # Not in a list
+        
         copied_if.line = self.line
         
         registry = memo.get('registry', None)
         
-        # Deep copy block
+        # Deep copy block and set parent references
         if self.block is not None:
             copied_if.block = copy.deepcopy(self.block, memo)
             copied_if.block.parent = copied_if
@@ -917,18 +926,22 @@ class If(ASTNode):
         else:
             copied_if.block = None
         
-        # Deep copy elifNodes
+        # Deep copy elifNodes and set parent references
         copied_if.elifNodes = []
-        for cond, blk in self.elifNodes:
+        for index, (cond, blk) in enumerate(self.elifNodes):
             copied_cond = copy.deepcopy(cond, memo)
             copied_blk = copy.deepcopy(blk, memo) if blk else None
+            if copied_cond:
+                copied_cond.parent = copied_if
+                copied_cond.parent_attr = 'elif_condition'
+                copied_cond.parent_index = index
             if copied_blk:
                 copied_blk.parent = copied_if
-                copied_blk.parent_attr = 'elifNodes'
-                copied_blk.parent_index = len(copied_if.elifNodes)
+                copied_blk.parent_attr = 'elif_block'
+                copied_blk.parent_index = index
             copied_if.elifNodes.append((copied_cond, copied_blk))
         
-        # Deep copy elseBlock
+        # Deep copy elseBlock and set parent references
         if self.elseBlock is not None:
             copied_if.elseBlock = copy.deepcopy(self.elseBlock, memo)
             copied_if.elseBlock.parent = copied_if
@@ -995,7 +1008,7 @@ class While(ASTNode):
         
     def __repr__(self):
         return f"While({repr(self.comparison)})"
-        
+    
     def __deepcopy__(self, memo):
         cls = self.__class__
         copied_while = cls.__new__(cls)
@@ -1008,18 +1021,19 @@ class While(ASTNode):
         if copied_while.comparison is not None:
             copied_while.comparison.parent = copied_while
             copied_while.comparison.parent_attr = 'comparison'
+            copied_while.comparison.parent_index = None
 
         if copied_while.block is not None:
             copied_while.block.parent = copied_while
             copied_while.block.parent_attr = 'block'
+            copied_while.block.parent_index = None
 
         registry = memo.get('registry', None)
         if registry is not None:
             registry['while'].append(copied_while)
 
         return copied_while
-
-        
+    
     def accept(self, visitor):
         return visitor.visit_while(self)
     

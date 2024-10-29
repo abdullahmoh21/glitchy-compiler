@@ -21,7 +21,7 @@ class TestAnalyzer(unittest.TestCase):
         ast = Program([
             VariableDeclaration('a', String("hello")),
             VariableDeclaration('b', Integer(2), line=2),
-            FunctionCall('print',[Argument(Comparison(VariableReference('a', 3), '<', VariableReference('b', 3), line=3))], None, line=3),
+            FunctionCall('print',[Argument(Comparison(VariableReference('a', 3), '<', VariableReference('b', 3), line=3))], line=3),
         ])
         analyzer = SemanticAnalyzer(ast)
         symbol_table = analyzer.analyze()
@@ -32,7 +32,7 @@ class TestAnalyzer(unittest.TestCase):
         ast = Program([
             VariableDeclaration('a', Boolean('true')),    # set a = true
             VariableDeclaration('b', Boolean('false')),   # set b = false
-            FunctionCall('print',[Argument(LogicalOp(VariableReference('a'), '&&', VariableReference('b')))], None),    # print(a && b)
+            FunctionCall('print',[Argument(LogicalOp(VariableReference('a'), '&&', VariableReference('b')))]),    # print(a && b)
         ])
         analyzer = SemanticAnalyzer(ast)
         symbol_table = analyzer.analyze()
@@ -47,7 +47,7 @@ class TestAnalyzer(unittest.TestCase):
         ast = Program([
             VariableDeclaration('a', Integer(1),line=1),
             VariableDeclaration('b', Boolean('false'),line=2),
-            FunctionCall('print',[Argument(LogicalOp(VariableReference('a',line=3), '&&', VariableReference('b',line=3),line=3))], None,line=3),
+            FunctionCall('print',[Argument(LogicalOp(VariableReference('a',line=3), '&&', VariableReference('b',line=3),line=3))],line=3),
         ])
         analyzer = SemanticAnalyzer(ast)
         symbol_table = analyzer.analyze()
@@ -121,11 +121,11 @@ class TestAnalyzer(unittest.TestCase):
                     Comparison(Integer(1), '<', Integer(2)),  # Condition always true
                     Block([Return(Integer(1))]),  # This branch returns
                     Block([  # The else branch does not return
-                        FunctionCall('print', [Argument(String("No return here"))], None, line=3)
+                        FunctionCall('print', [Argument(String("No return here"))], line=3)
                     ])
                 )
             ]), line=2),
-            FunctionCall('testFunc', [], None, line=5)
+            FunctionCall('testFunc', [], line=5)
         ])
         analyzer = SemanticAnalyzer(ast)
         analyzer.analyze()
@@ -148,7 +148,7 @@ class TestAnalyzer(unittest.TestCase):
                     ]
                 )
             ]), line=1),
-            FunctionCall('checkValue', [], None, line=4)
+            FunctionCall('checkValue', [], line=4)
         ])
         analyzer = SemanticAnalyzer(ast)
         analyzer.analyze()
@@ -169,7 +169,7 @@ class TestAnalyzer(unittest.TestCase):
                     ])
                 )
             ]), line=1),
-            FunctionCall('loopFunc', [], None, line=5)
+            FunctionCall('loopFunc', [], line=5)
         ])
         analyzer = SemanticAnalyzer(ast)
         analyzer.analyze()
@@ -185,7 +185,7 @@ class TestAnalyzer(unittest.TestCase):
                     elseBlock=Block([Return(Integer(2))])  # Return in else block
                 )
             ]), line=1),
-            FunctionCall('exampleFunc', [], None, line=4)
+            FunctionCall('exampleFunc', [], line=4)
         ])
         analyzer = SemanticAnalyzer(ast)
         analyzer.analyze()
@@ -204,7 +204,7 @@ class TestAnalyzer(unittest.TestCase):
                     )
                 )
             ]), line=1),
-            FunctionCall('multiCheck', [], None, line=4)
+            FunctionCall('multiCheck', [],line=4)
         ])
         analyzer = SemanticAnalyzer(ast)
         analyzer.analyze()
@@ -252,9 +252,9 @@ class TestAnalyzer(unittest.TestCase):
     def test_missing_argument(self):
         ast = Program([
             FunctionDeclaration('testFunc', 'void', [Parameter('x', 'integer')], Block([
-                FunctionCall('print',[Argument(VariableReference('x'))], None,line=1),
+                FunctionCall('print',[Argument(VariableReference('x'))], line=1),
             ]),line=1),
-            FunctionCall('testFunc', [], None,line=3)
+            FunctionCall('testFunc', [], line=3)
         ])
         analyzer = SemanticAnalyzer(ast)
         analyzer.analyze()

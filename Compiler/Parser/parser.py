@@ -411,7 +411,7 @@ class Parser:
         self.match(TokenType.INCREMENT)
         return VariableUpdated(
             var_name,
-            BinaryOp(VariableReference(var_name, line=self.lineNumber), '+', Integer(1)),
+            BinaryOp(VariableReference(var_name, line=self.lineNumber), '+',  Integer(1) ,line=self.lineNumber),
             self.lineNumber
         )
 
@@ -419,7 +419,7 @@ class Parser:
         self.match(TokenType.DECREMENT)
         return VariableUpdated(
             var_name,
-            BinaryOp(VariableReference(var_name, line=self.lineNumber), '-', Integer(1)),
+            BinaryOp(VariableReference(var_name, line=self.lineNumber), '-', Integer(1),line=self.lineNumber),
             self.lineNumber
         )
 
@@ -492,7 +492,7 @@ class Parser:
             operator = assignment_operator[0]
             
             var_ref = VariableReference(var_name)
-            bin_op_expr = BinaryOp(var_ref, operator, expr)
+            bin_op_expr = BinaryOp(var_ref, operator, expr,line=self.lineNumber)
             var_update_node = VariableUpdated(var_name, bin_op_expr, line=self.lineNumber)
             return var_update_node
 
@@ -720,10 +720,10 @@ class Parser:
             else:
                 if self.checkToken(TokenType.INCREMENT):
                     self.nextToken()
-                    node = VariableUpdated(var_name, BinaryOp(VariableReference(var_name, line=self.lineNumber), '+', Integer(1)), self.lineNumber)
+                    node = VariableUpdated(var_name, BinaryOp(VariableReference(var_name, line=self.lineNumber), '+', Integer(1), line=self.lineNumber), self.lineNumber)
                 elif self.checkToken(TokenType.DECREMENT):
                     self.nextToken()
-                    node = VariableUpdated(var_name, BinaryOp(VariableReference(var_name, line=self.lineNumber), '-', Integer(1)), self.lineNumber)
+                    node = VariableUpdated(var_name, BinaryOp(VariableReference(var_name, line=self.lineNumber), '-', Integer(1), line=self.lineNumber), self.lineNumber)
                 else:
                     node = VariableReference(var_name, line=self.lineNumber)
         
