@@ -88,20 +88,27 @@ This feature turns coding into an interactive learning experience, helping users
 
 ## Installation
 
-To install the Glitchy compiler, ensure you have Python and `pip` installed on your system.
+To install the Glitchy compiler, ensure you have Python, `pip`, and `Clang` installed on your system.
 
 1. **Install Python and `pip`**:
 
 - You can download Python (which includes `pip`) from [here](https://www.python.org/downloads/).
 
-2. **Clone the repository** and navigate to the project directory:
+2. **Install Clang**:
+
+- Make sure Clang is installed and accessible in your system's PATH.
+  - **Ubuntu**: `sudo apt-get install clang`
+  - **macOS**: `brew install llvm`
+  - **Windows**: Download from [LLVM's website](https://llvm.org/) and ensure Clang is added to your PATH.
+
+3. **Clone the repository** and navigate to the project directory:
 
 ```bash
-git clone https://github.com/abdullahmoh21/Glitchy-Compiler.git
+git clone https://github.com/abdullahmoh21/glitchy-compiler.git
 cd glitchy-compiler
 ```
 
-3. **Install Glitchy** and its dependencies using pip:
+4. Install Glitchy and its dependencies using pip:
 
 ```bash
 pip install .
