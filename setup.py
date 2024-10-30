@@ -15,7 +15,7 @@ class checkClang(install):
         install.run(self)
 
 setup(
-    name="GlitchyCompiler",
+    name="glitchy",
     version="1.0",
     packages=find_packages(),
     install_requires=[
