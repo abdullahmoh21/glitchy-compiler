@@ -75,8 +75,10 @@ class LLVMCodeGenerator:
                 if value.type == ir.DoubleType() and expected_type == ir.IntType(64):
                     report(f"Precision loss. Truncating double to int for Variable '{node.name}'.","Warning",error=False,line=node.line)
                     value = self.builder.fptosi(value, ir.IntType(64))
+                elif value.type == ir.IntType(64) and expected_type == ir.DoubleType():
+                    value = self.builder.sitofp(value, ir.DoubleType())
                 else:
-                    throw(TypeError(f"Invalid assignment for symbol '{node.name}'. expected '{expected_type}', got: '{value.type} '"))
+                    throw(TypeError(f"Invalid assignment for symbol '{node.name}'. expected '{expected_type}', got: '{value.type}'"))
             self.builder.store(value, local_var)
 
         elif isinstance(node, VariableReference):

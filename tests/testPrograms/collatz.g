@@ -1,4 +1,4 @@
-// program to calculate the Collatz Conjecture
+// expected 111
 function void collatz(n:int) {
     set steps = 0
 

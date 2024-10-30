@@ -55,9 +55,11 @@ def report(message, type_="Complier",error=True, line=None):
     print(error_message)
 
 def has_error_occurred():
+    global error_occurred
     return error_occurred
 
 def get_errors():
+    global error_messages
     return error_messages
 
 def clear_errors(): 

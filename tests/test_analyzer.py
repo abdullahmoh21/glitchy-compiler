@@ -35,7 +35,7 @@ class TestAnalyzer(unittest.TestCase):
             FunctionCall('print',[Argument(LogicalOp(VariableReference('a'), '&&', VariableReference('b')))]),    # print(a && b)
         ])
         analyzer = SemanticAnalyzer(ast)
-        symbol_table = analyzer.analyze()
+        _, symbol_table = analyzer.analyze()
         self.assertFalse(error.has_error_occurred())
         self.assertIsNotNone(symbol_table)
         self.assertIsNotNone(symbol_table.isDeclared('a'))
@@ -61,7 +61,7 @@ class TestAnalyzer(unittest.TestCase):
         analyzer = SemanticAnalyzer(ast)
         analyzer.analyze()
         self.assertTrue(error.has_error_occurred())
-        self.assertTrue(any("TypeError: Variable 'x' expects type 'integer but got expression: '3.5' of type 'double'" in e for e in error.get_errors()))
+        self.assertTrue(any("TypeError: Variable 'x' expects type 'integer' but got expression: '3.5' of type 'double'" in e for e in error.get_errors()))
 
     def test_undefined_variable_usage(self):
         ast = Program([

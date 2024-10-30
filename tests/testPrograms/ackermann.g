@@ -1,6 +1,5 @@
-// highly recursive 
+// expected output: 7
 function int ackermann(m:int, n:int) {
-    print("Ackermann called!")
     if (m == 0) {
         return n + 1
     } elif (m > 0 && n == 0) {
@@ -10,6 +9,7 @@ function int ackermann(m:int, n:int) {
     }
 }
 
-set m = 4
+// don't want to hang up unittest
+set m = 2
 set n = 2
-print("Ackermann(" + m + ", " + n + ") = " + ackermann(m, n))
+print(ackermann(m, n))

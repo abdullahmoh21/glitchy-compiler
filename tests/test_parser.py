@@ -5,9 +5,6 @@ from Compiler.Lexer import *
 from Compiler.Parser import *
 from Compiler.utils import *
 
-
-
-#  All my parser tests are in this class. to run all tests: python3 -m unittest parsing.tests
 class TestParser(unittest.TestCase):
     def test_simple_set_and_print(self):
         source_code = '''
@@ -641,15 +638,6 @@ class TestParser(unittest.TestCase):
         lexer = Lexer(source_code)
         parser = Parser(lexer)
         generated_ast = parser.parse()
-        
-        if generated_ast is not None:
-            print("\nGenerated AST:")
-            generated_ast.print_content()
-        
-        print("\nExpected AST:")
-        expected_ast.print_content()
-        print("\n")
-        
         if not TestParser.compare_ast(generated_ast, expected_ast):
             self.fail("\n[ERROR] Generated AST does not match expected AST\n")
     

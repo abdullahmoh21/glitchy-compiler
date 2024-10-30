@@ -10,7 +10,9 @@ function int ackermann(m:int, n:int) {
     }
 }
 
+print("Enter a value for m: ")
 set m = input().toInteger()
+print("Enter a value for n: ")
 set n = input().toInteger()
 
 print("Ackermann(" + m + ", " + n + ") = " + ackermann(m, n))

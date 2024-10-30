@@ -130,7 +130,7 @@ class Parser:
             TokenType.RBRACE: "Unexpected '}'. Did you forget to open a block or are you closing it too early?",
             TokenType.LPAREN: "Unexpected '('. This might indicate a missing operator or incorrect function/method call.",
             TokenType.RPAREN: "Unexpected ')'. You may be missing an opening parenthesis or have unmatched parentheses.",
-            TokenType.SEMICOLON: "Unexpected ';'. You dont need to end statements with semicolons.",
+            TokenType.SEMICOLON: "Unexpected ';'. You dont need to end statements with semicolons. This is not Java; show some respect.",
             TokenType.COMMA: "Unexpected ','. Ensure that you're using in correct context.",
             TokenType.IF: "Unexpected 'if'. This keyword is only valid at the beginning of an if-else statement.",
             TokenType.ELSE: "Unexpected 'else'. 'else' must follow an 'if' block or an 'elif' block.",
@@ -145,8 +145,8 @@ class Parser:
             TokenType.AND: "Unexpected '&&'. Logical AND should be used in a condition, not as a standalone token.",
             TokenType.OR: "Unexpected '||'. Logical OR should be used in a condition, not as a standalone token.",
             TokenType.NOT: "Unexpected '!'. The NOT operator should be followed by a condition or a boolean value.",
-            TokenType.INCREMENT: "Unexpected '++'. Ensure that '++' is used as a standalone statement or within an expression.",
-            TokenType.DECREMENT: "Unexpected '--'. Ensure that '--' is used as a standalone statement or within an expression.",
+            TokenType.INCREMENT: "Unexpected '++'. Ensure that '++' is used in the correct context",
+            TokenType.DECREMENT: "Unexpected '--'. Ensure that '--' is used in the correct context",
         }
         
         if self.currentToken.type in errMsgs:
