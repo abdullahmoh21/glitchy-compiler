@@ -1,6 +1,4 @@
 import argparse
-import subprocess
-import tempfile
 import os
 import llvmlite.binding as llvm
 import llvmlite.ir as ir
