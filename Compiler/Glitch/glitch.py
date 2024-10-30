@@ -35,7 +35,6 @@ class GlitchType(Enum):
     # Not implemented:
     IF_COND = "Replaces an if statements condition to true or false. Making it always or never run"
     ARG_CHANGE = "Changes the value of an argument."
-
 class GlitchEngine:
     def __init__(self, ast):
         self.ast = ast

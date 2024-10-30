@@ -5,13 +5,12 @@ from setuptools.command.install import install
 
 class checkClang(install):
     def run(self):
-        # Check if clang is installed
         try:
             subprocess.run(['clang', '--version'], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             print("Clang is installed.")
         except subprocess.CalledProcessError:
             print("Error: Clang is not installed. Please install Clang and ensure it's in your PATH.")
-            sys.exit(1)  # Exit with error if Clang is not installed
+            sys.exit(1) 
 
         install.run(self)
 
@@ -20,7 +19,8 @@ setup(
     version="1.0",
     packages=find_packages(),
     install_requires=[
-        "llvmlite",  # Ensure llvmlite is installed for LLVM IR handling
+        "llvmlite",  
+        "rich",      
     ],
     entry_points={
         'console_scripts': [
@@ -36,6 +36,6 @@ setup(
     ],
     python_requires='>=3.6',
     cmdclass={
-        'install': checkClang,  # Ensure clang is installed for linking during "glitch" game
+        'install': checkClang,  # Ensure clang is installed for linking
     },
 )
