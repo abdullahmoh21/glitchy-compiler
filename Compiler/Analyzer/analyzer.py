@@ -8,6 +8,7 @@ class SemanticAnalyzer:
         self.stringCatNodes = []
         
         # context vars
+        self.glitchPresent = False
         self.func_name = None
         self.func_params = None
         self.func_return_type = None
@@ -16,17 +17,19 @@ class SemanticAnalyzer:
     def analyze(self):
         if error.has_error_occurred():
             print("Parsing errors occurred. Cannot proceed with semantic analysis.")
-            return
+            return None, None
         
         if self.ast is None or self.symbolTable is None:
-            return
+            return None, None
         try:
             self.ast.accept(self)
             
         except Exception as e:
             throw(SemanticError(e))
         
-        return self.symbolTable
+        curPassNo = self.ast.node_registry['passNo']
+        self.ast.addRef('passNo', (curPassNo+1))
+        return self.glitchPresent, self.symbolTable
         
     def visit_program(self, node):
         self.declareBuiltIns()
@@ -54,6 +57,7 @@ class SemanticAnalyzer:
         
     def visit_variable(self, node):
         if isinstance(node, VariableDeclaration): 
+            self.ast.addRef('varDecl',node)
             if self.symbolTable.inScope(node.name) is not None:
                 throw(ReferenceError(f"The name '{str(node.name)}' on line {node.line} is already defined.")) 
 
@@ -85,6 +89,8 @@ class SemanticAnalyzer:
             )
 
         elif isinstance(node, VariableUpdated):
+            self.ast.addRef('varUpdate',node)
+            
             var = self.symbolTable.lookup(node.name)
             if var is None:
                 throw(ReferenceError(f"Variable '{str(node.name)}' does not exist in this scope"),line=node.line) 
@@ -118,6 +124,7 @@ class SemanticAnalyzer:
                 throw(e,line=node.line)
 
         elif isinstance(node, VariableReference): 
+            self.ast.addRef('varRef',node)
             symbol = self.symbolTable.lookup(node.name)               
             if symbol is None:
                 throw(ReferenceError(f"Variable '{str(node.name)}' on line {node.line} has not been defined")) 
@@ -131,6 +138,7 @@ class SemanticAnalyzer:
                 node.type = type_str
         
     def visit_if(self, node):
+        self.ast.addRef('if',node)
         node.comparison.accept(self)
         self.ensureBooleanContext(node.comparison)
         node.block.accept(self)
@@ -145,6 +153,7 @@ class SemanticAnalyzer:
             node.elseBlock.accept(self)
 
     def visit_while(self, node):
+        self.ast.addRef('while',node)
         node.comparison.accept(self)
         self.ensureBooleanContext(node.comparison)
         self.inLoopBlock = True
@@ -180,6 +189,7 @@ class SemanticAnalyzer:
         node.return_type = validate_call(node)
     
     def visit_function_declaration(self, node):
+        self.ast.addRef('funcDecl',node)
         if self.symbolTable.lookup(node.name) is not None:
             throw(ReferenceError(f"The symbol name '{self.name}' on line {node.line} already exists."))
         
@@ -210,7 +220,7 @@ class SemanticAnalyzer:
         self.func_return_type = node.return_type
 
         # validate returns and visit stmts
-        has_return_statement = self.check_and_visit_statements(node.block)
+        has_return_statement = self.validate_return(node.block)
         
         if node.return_type != 'void' and has_return_statement == False:
             throw(ReturnError(f"Not all branches in the function '{node.name}' return correctly"),)
@@ -220,45 +230,7 @@ class SemanticAnalyzer:
         self.func_name = None
         self.func_params = None
         self.func_return_type = None
-        
-    def check_and_visit_statements(self, block):
-        """
-        This function traverses the block of statements once, performing both the visiting of each node (via accept)
-        and ensuring return statements are correctly placed.
-        """
-        has_return = False
-        for stmt in block.statements:
-            stmt.accept(self)  
-            if isinstance(stmt, Return):
-                has_return = True
-            elif isinstance(stmt, If):
-                if_returns = self.check_if_statement(stmt)
-                has_return = has_return or if_returns
-            elif isinstance(stmt, FunctionCall):
-                if stmt.name == self.func_name:
-                    has_return = True
-        return has_return
 
-    def check_if_statement(self, node):
-        """
-        Checks if an `if-elif-else` statement ensures all paths have a return statement.
-        """
-        if_block_has_return = self.check_and_visit_statements(node.block)
-        elif_blocks_have_return = all(self.check_and_visit_statements(elif_block_node) for _, elif_block_node in node.elifNodes)
-
-        if node.elseBlock is not None:
-            else_block_has_return = self.check_and_visit_statements(node.elseBlock)
-        else:
-            else_block_has_return = False  
-            
-        if else_block_has_return:
-            return True
-        if if_block_has_return or elif_blocks_have_return:
-            return False 
-
-        # Raise an error if none of the branches guarantee a return
-        raise ReturnError(f"Not all paths in the if-elif-else block return in function '{self.func_name}'.")
-        
     def visit_return(self, node):
         node.value.accept(self)
         inferred_type = node.evaluateType()
@@ -276,16 +248,23 @@ class SemanticAnalyzer:
         node.value.accept(self)
         
     def visit_function_call(self, node):
+        self.ast.addRef('funcCall', node)
         func_name = node.name
         if func_name == 'typeof':
             node.type = "string"
             return self.evalTypeOf(node)
-        symbol = self.symbolTable.lookup(func_name)
+        if func_name == 'glitch':
+            if node.arity != 0:
+                throw(ArgumentError(f"Function glitch expects 0 arguments but received {node.arity} arguments"),line=node.line)
+            self.glitchPresent = True
+            node.replace_self(None) # delete node because there is no concrete implementation of glitch()
+            return
         
+        symbol = self.symbolTable.lookup(func_name)
         if symbol and 'function_data' in symbol:
             function = symbol['function_data']
         else:
-            throw(ReferenceError(f"Incorrect Function Call on line {node.line}. A function with name '{str(node.name)}' does not exists."))
+            throw(ReferenceError(f"Incorrect Function Call on line {node.line}. A function with name '{str(node.name)}' does not exist."))
         
         if node.arity != function.get('arity'):
             throw(ArgumentError(f"Function '{func_name}' expects {function['arity']} arguments but received {node.arity} arguments"),line=node.line)
@@ -311,14 +290,15 @@ class SemanticAnalyzer:
                     
         node.type = function.get('return_type', None)
 
-    
     def visit_comparison(self, node):
+        self.ast.addRef('comparison', node)
         self.promoteExprInts(node)
         node.left.accept(self)
         node.right.accept(self)
         self.validateOperation(node)
     
     def visit_binary_op(self, node):
+        self.ast.addRef('binOp', node)
         self.promoteExprInts(node)
         isStringCat= self.checkStrcat(node)
         if isStringCat:  # no need to continue 
@@ -328,6 +308,7 @@ class SemanticAnalyzer:
         self.validateOperation(node)
     
     def visit_logical_op(self, node):
+        self.ast.addRef('logOp', node)
         self.promoteExprInts(node)
         node.left.accept(self)
         node.right.accept(self)
@@ -472,7 +453,10 @@ class SemanticAnalyzer:
             throw(SemanticError(f"Invalid Unary Operation on {left.line}: '{str(operator)+str(left)}' Invalid operator: '{operator}'" ))
 
     def checkStrcat(self, node):
-        """ Transforms BinaryOp to a StringCat node if it is a string operation"""
+        """ 
+        Decides wether or not a BinaryOp is a String concatenation. 
+        if it is, calls the appropriate  method, that will transform to a StringCat node and attempt to evaluate it
+        """
         left, right, operator = node.left, node.right, node.operator
         
         # we dont want to accept binaryOps since that will start processing as an Arithmetic op
@@ -485,8 +469,6 @@ class SemanticAnalyzer:
         right_type = right.evaluateType()
         
         if left_type == 'string' or right_type == 'string':
-            if node.parent is None:
-                throw(CompilationError(f"AST node for String concatenation:\n{str(node)}\nhas no parent attr. cannot continue"))
             strcat_node = self.transformStrcat(node)
             if isinstance(strcat_node, StringCat):
                 return True
@@ -494,14 +476,15 @@ class SemanticAnalyzer:
             
     def transformStrcat(self, node):
         """
-        Validates and transforms a BinaryOp node into a StringCat node. 
+        Validates and transforms a BinaryOp node into a StringCat node.
+        If possible we completely evaluate it. if not, we defer to runtime
         This is not done in the parser since all type info is not available.
         """
         if isinstance(node, BinaryOp):
             strings = self._collectStrings(node)
-            string_cat_node = StringCat(strings=strings, parent=node.parent, line=node.line)
+            string_cat_node = StringCat(strings=strings, line=node.line)
 
-            node.replace_with(string_cat_node)
+            node.replace_self(string_cat_node)
             node.transformed = True
             
             # For later evaluation
@@ -520,14 +503,12 @@ class SemanticAnalyzer:
 
         def collect(node):
             is_string_cat = isinstance(node, BinaryOp) and node.operator == '+' and node.evaluateType() == 'string'
-            if not is_string_cat:   
+            if not is_string_cat:  # accepting a binaryOp wll lead to processing like arithmetic 
                 node.accept(self)
             if is_string_cat:
                 collect(node.left)
                 collect(node.right)
             elif node.evaluateType() in ['string','integer','double','boolean','null']:
-                if isinstance(node, VariableReference):
-                    node.scope = self.symbolTable.scopeOf(node.name)  
                 strings.append(node)
             else:
                 throw(TypeError(f"Illegal Expression in String concatenation: {node}  with types:'{node.evaluateType()}' '+' '{node.evaluateType()}'"))
@@ -537,6 +518,9 @@ class SemanticAnalyzer:
     
     def evalStrCat(self, node):
         """ Attempts to evaluated a string concatenation. defers otherwise """
+        if node.visited:
+            return
+        node.visited = True
         evaluated_strings = []
         buffer = [] 
         fully_evaluated = True  
@@ -580,7 +564,7 @@ class SemanticAnalyzer:
                     buffer.append(evaluated_expr)  # Append the evaluated expression
 
             else:
-                raise TypeError(f"Unsupported type in string concatenation: {type(expr).__name__}")
+                throw(TypeError(f"Unsupported type in string concatenation on line {node.line}: {type(expr).__name__}"))
 
         if buffer:
             evaluated_strings.append(''.join(buffer))
@@ -800,4 +784,43 @@ class SemanticAnalyzer:
             right_ty_str = self.validateTyStr(right.value)
             if left_ty_str != 'invalid' or right_ty_str != 'invalid':
                 left.value = left_ty_str
-                right.value = right_ty_str          
+                right.value = right_ty_str        
+                
+            
+    def validate_return(self, block):
+        """
+        Helper to validate returns in a function body. traverses the block of statements once, performing both the visiting of each node (via accept)
+        and ensuring return statements are correctly placed.
+        """
+        has_return = False
+        for stmt in block.statements:
+            stmt.accept(self)  
+            if isinstance(stmt, Return):
+                has_return = True
+            elif isinstance(stmt, If):
+                if_returns = self.validate_if_return(stmt)
+                has_return = has_return or if_returns
+            elif isinstance(stmt, FunctionCall):
+                if stmt.name == self.func_name:
+                    has_return = True
+        return has_return
+
+    def validate_if_return(self, node):
+        """
+        Checks if an `if-elif-else` statement ensures all paths have a return statement.
+        """
+        if_block_has_return = self.validate_return(node.block)
+        elif_blocks_have_return = all(self.validate_return(elif_block_node) for _, elif_block_node in node.elifNodes)
+
+        if node.elseBlock is not None:
+            else_block_has_return = self.validate_return(node.elseBlock)
+        else:
+            else_block_has_return = False  
+            
+        if else_block_has_return:
+            return True
+        if if_block_has_return or elif_blocks_have_return:
+            return False 
+
+        throw(ReturnError(f"Not all paths in the if-elif-else block return in function '{self.func_name}'."))
+          

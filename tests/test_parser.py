@@ -5,9 +5,6 @@ from Compiler.Lexer import *
 from Compiler.Parser import *
 from Compiler.utils import *
 
-
-
-#  All my parser tests are in this class. to run all tests: python3 -m unittest parsing.tests
 class TestParser(unittest.TestCase):
     def test_simple_set_and_print(self):
         source_code = '''
@@ -16,8 +13,8 @@ class TestParser(unittest.TestCase):
         '''
         expected_ast = Program([
             VariableDeclaration("x", Integer(42), 2),
-            FunctionCall('print', [Argument(String("Hello, world"))], None, 3)
-        ], 1)
+            FunctionCall('print', [Argument(String("Hello, world"))], 3)
+        ])
         self.run_test(source_code, expected_ast)
 
     def test_if_statement(self):
@@ -32,11 +29,11 @@ class TestParser(unittest.TestCase):
             If(
                 Comparison(VariableReference("x", 3), "==", Integer(10, 3), 3),
                 Block([
-                    FunctionCall('print',[Argument(String("x is ten"))],None,line=4)
+                    FunctionCall('print',[Argument(String("x is ten"))],line=4)
                 ]),
                 3
             )
-        ], 1)
+        ])
         self.run_test(source_code, expected_ast)
 
     def test_elseif_statement(self):
@@ -55,22 +52,22 @@ class TestParser(unittest.TestCase):
             If(
                 Comparison(VariableReference("x", 3), ">", Integer(10, 3), 3),
                 Block([
-                    FunctionCall('print',[Argument(String("x is greater than ten"))], None,4 )
+                    FunctionCall('print',[Argument(String("x is greater than ten"))],4 )
                 ]),
                 elifNodes=[
                     (
                         Comparison(VariableReference("x", 5), "<", Integer(10, 5), 5),
                         Block([
-                            FunctionCall('print',[Argument(String("x is less than ten"))], None,6 )
+                            FunctionCall('print',[Argument(String("x is less than ten"))],6 )
                         ])
                     )
                 ],
                 elseBlock=Block([
-                    FunctionCall('print',[Argument(String("x is ten"))], None,8 )
+                    FunctionCall('print',[Argument(String("x is ten"))],8 )
                 ]),
                 line=3
             )
-        ], 1)
+        ])
 
         
         self.run_test(source_code, expected_ast)
@@ -97,7 +94,7 @@ class TestParser(unittest.TestCase):
                             If(
                                 Comparison(VariableReference("x", 5), "==", Integer(10, 5), 5),
                                 Block([
-                                    FunctionCall('print',[Argument(String("x is ten"))], None, 6)
+                                    FunctionCall('print',[Argument(String("x is ten"))], 6)
                                 ]),
                                 5
                             )
@@ -107,7 +104,7 @@ class TestParser(unittest.TestCase):
                 ]),
                 3
             )
-        ], 1)
+        ])
         self.run_test(source_code, expected_ast)
 
     def test_while_loop(self):
@@ -128,7 +125,7 @@ class TestParser(unittest.TestCase):
                 ]),
                 3
             )
-        ], 1)
+        ])
         self.run_test(source_code, expected_ast)
 
     def test_input_statement(self):
@@ -138,9 +135,9 @@ class TestParser(unittest.TestCase):
         '''
         expected_ast = Program([
             VariableDeclaration('foo',
-                FunctionCall('input',[],None, line=2)
+                FunctionCall('input',[], line=2)
             ),
-            FunctionCall('print',[Argument((VariableReference("foo")))], None, 3)
+            FunctionCall('print',[Argument((VariableReference("foo")))], 3)
         ])
         self.run_test(source_code, expected_ast)
 
@@ -165,7 +162,7 @@ class TestParser(unittest.TestCase):
                     VariableReference("e", 2), 2
                 ), 2
             )
-        ], 1)
+        ])
         self.run_test(source_code, expected_ast)
     
     def test_complex_expression_1(self):
@@ -198,7 +195,7 @@ class TestParser(unittest.TestCase):
                     2
                 ), 2
             )
-        ], 1)
+        ])
 
         self.run_test(source_code, expected_ast)
 
@@ -252,7 +249,7 @@ class TestParser(unittest.TestCase):
                     2
                 ), 2
             )
-        ], 1)
+        ])
 
         self.run_test(source_code, expected_ast)
 
@@ -316,7 +313,7 @@ class TestParser(unittest.TestCase):
                     2
                 ), 2
             )
-        ], 1)
+        ])
 
         self.run_test(source_code, expected_ast)
 
@@ -457,7 +454,7 @@ class TestParser(unittest.TestCase):
                     2
                 ), 2
             )
-        ], 1)
+        ])
 
         self.run_test(source_code, expected_ast)
 
@@ -480,14 +477,14 @@ class TestParser(unittest.TestCase):
                     If(
                         Comparison(VariableReference("y", 5), "==", Integer(2, 5), 5),
                         Block([
-                            FunctionCall('print',[Argument(String("y is two"))], None, 6)
+                            FunctionCall('print',[Argument(String("y is two"))], 6)
                         ]),
                         5
                     )
                 ]),
                 3
             )
-        ], 1)
+        ])
         self.run_test(source_code, expected_ast)
 
     def test_expression_with_parentheses(self):
@@ -519,7 +516,7 @@ class TestParser(unittest.TestCase):
                 ), 
                 2
             )
-        ], 1)
+        ])
 
         self.run_test(source_code, expected_ast)
 
@@ -536,7 +533,7 @@ class TestParser(unittest.TestCase):
                 Block([]),
                 3
             )
-        ], 1)
+        ])
         self.run_test(source_code, expected_ast)
 
     def test_for_loop_with_complex_update(self):
@@ -551,13 +548,13 @@ class TestParser(unittest.TestCase):
                 While(
                     Comparison(VariableReference("i", 2), "<", Integer(10, 2), 2),  # Condition
                     Block([
-                        FunctionCall('print',[Argument(String("Looping"))], None, 3),
+                        FunctionCall('print',[Argument(String("Looping"))], 3),
                         VariableUpdated("i",BinaryOp(VariableReference("i", 3), "+", Integer(2, 3), 3), 3)  # Increment
                     ]),
                     2
                 )
             ])
-        ], 1)
+        ])
         self.run_test(source_code, expected_ast)
 
     def test_for_loop(self):
@@ -572,13 +569,13 @@ class TestParser(unittest.TestCase):
                 While(
                     Comparison(VariableReference("i", 2), "<", Integer(10, 2), 2),  # Condition
                     Block([
-                        FunctionCall('print',[Argument(String("Looping"))], None, 3),
+                        FunctionCall('print',[Argument(String("Looping"))], 3),
                         VariableUpdated("i", BinaryOp(VariableReference("i", 3), "+", Integer(1, 3), 3), 3)  # Increment
                     ]),
                     2
                 )
             ])
-        ], 1)
+        ])
         self.run_test(source_code, expected_ast)
 
     def test_function_decl(self):
@@ -641,15 +638,6 @@ class TestParser(unittest.TestCase):
         lexer = Lexer(source_code)
         parser = Parser(lexer)
         generated_ast = parser.parse()
-        
-        if generated_ast is not None:
-            print("\nGenerated AST:")
-            generated_ast.print_content()
-        
-        print("\nExpected AST:")
-        expected_ast.print_content()
-        print("\n")
-        
         if not TestParser.compare_ast(generated_ast, expected_ast):
             self.fail("\n[ERROR] Generated AST does not match expected AST\n")
     

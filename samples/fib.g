@@ -16,5 +16,6 @@ function void fib(n:int) {
 
     print("Fibonacci[" + (n) + "] = " + b)   
 }
+print("Please enter an integer:")
 set num = input().toInteger()
 fib(num)

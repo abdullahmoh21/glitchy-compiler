@@ -15,6 +15,6 @@ function void collatz(n:int) {
 
     print("Collatz Conjecture completed in " + steps + " steps.")
 }
-
+print("Please enter a value for n: ")
 set num = input().toInteger()
 collatz(num)

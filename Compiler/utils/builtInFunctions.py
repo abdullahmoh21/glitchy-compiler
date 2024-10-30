@@ -23,6 +23,12 @@ class BuiltInFunctions:
             'parameters': [],
             'arity': 0,
             'return_type': 'string'
+        },
+        'glitch': {
+            'name': 'glitch',
+            'parameters': [],
+            'arity': 0,
+            'return_type': 'void'
         }
     }
 

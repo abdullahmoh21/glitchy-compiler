@@ -1,8 +1,6 @@
-import sys
 from .ast import *
-
 """
-This module defines all the exceptions that can be raised by the compiler.
+This module defines all the exceptions that can be raised by the compiler. As well as methods to report or throw these errors 
 """
 
 error_occurred = False
@@ -13,7 +11,7 @@ reset = "\033[0m"
 def throw(exception, exit=True, line=None):
     """
     Raises an exception and handles it by printing only the error message without a stack trace.
-    This hides python from the user. We can also raise an Exit exception that exits the current stage of compilation
+    This hides python from the user. We can also raise an Exit exception that exits compilation, from wherever we are in the compilation process
     
     Args:
         exception (Error): The exception instance to raise and handle.
@@ -36,12 +34,12 @@ def throw(exception, exit=True, line=None):
 def report(message, type_="Complier",error=True, line=None):
     """
     Prints an error message to standard output without exiting the program. 
-    Marks that code is erroneous so that further execution (after parser) can be stopped.
+    Marks that code is erroneous so that further execution can be stopped.
 
     Args:
         message (str): The error message to report.
-        type (str): The type of error (e.g., Syntax, Lexer, etc.).
-        error(book, optional): wether to mark global error flag
+        type_ (str): The type of error (e.g., Syntax, Lexer, etc.).
+        error(bool, optional): wether to mark global error flag. 
         line (int, optional): The line number where the error occurred.
     """
     global error_occurred, error_messages
@@ -57,9 +55,11 @@ def report(message, type_="Complier",error=True, line=None):
     print(error_message)
 
 def has_error_occurred():
+    global error_occurred
     return error_occurred
 
 def get_errors():
+    global error_messages
     return error_messages
 
 def clear_errors(): 
@@ -152,3 +152,10 @@ class CompilationError(Error):
     def __str__(self):
         return f"CompilationError: {self.message}"
 
+class GlitchError(Error):
+    """Exception raised for all errors in our glitch game"""
+    def __init__(self, message):
+        super().__init__(message)
+
+    def __str__(self):
+        return f"GlitchError: {self.message}"

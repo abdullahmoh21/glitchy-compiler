@@ -6,6 +6,7 @@ class TestAnalyzer(unittest.TestCase):
     def setUp(self):
         error.clear_errors()
 
+    # TODO: add string concatenation tests about 5
     def test_duplicate_variable(self):
         ast = Program([
             VariableDeclaration('x', Integer(5)),
@@ -20,7 +21,7 @@ class TestAnalyzer(unittest.TestCase):
         ast = Program([
             VariableDeclaration('a', String("hello")),
             VariableDeclaration('b', Integer(2), line=2),
-            FunctionCall('print',[Argument(Comparison(VariableReference('a', 3), '<', VariableReference('b', 3), line=3))], None, line=3),
+            FunctionCall('print',[Argument(Comparison(VariableReference('a', 3), '<', VariableReference('b', 3), line=3))], line=3),
         ])
         analyzer = SemanticAnalyzer(ast)
         symbol_table = analyzer.analyze()
@@ -31,10 +32,10 @@ class TestAnalyzer(unittest.TestCase):
         ast = Program([
             VariableDeclaration('a', Boolean('true')),    # set a = true
             VariableDeclaration('b', Boolean('false')),   # set b = false
-            FunctionCall('print',[Argument(LogicalOp(VariableReference('a'), '&&', VariableReference('b')))], None),    # print(a && b)
+            FunctionCall('print',[Argument(LogicalOp(VariableReference('a'), '&&', VariableReference('b')))]),    # print(a && b)
         ])
         analyzer = SemanticAnalyzer(ast)
-        symbol_table = analyzer.analyze()
+        _, symbol_table = analyzer.analyze()
         self.assertFalse(error.has_error_occurred())
         self.assertIsNotNone(symbol_table)
         self.assertIsNotNone(symbol_table.isDeclared('a'))
@@ -46,7 +47,7 @@ class TestAnalyzer(unittest.TestCase):
         ast = Program([
             VariableDeclaration('a', Integer(1),line=1),
             VariableDeclaration('b', Boolean('false'),line=2),
-            FunctionCall('print',[Argument(LogicalOp(VariableReference('a',line=3), '&&', VariableReference('b',line=3),line=3))], None,line=3),
+            FunctionCall('print',[Argument(LogicalOp(VariableReference('a',line=3), '&&', VariableReference('b',line=3),line=3))],line=3),
         ])
         analyzer = SemanticAnalyzer(ast)
         symbol_table = analyzer.analyze()
@@ -60,7 +61,7 @@ class TestAnalyzer(unittest.TestCase):
         analyzer = SemanticAnalyzer(ast)
         analyzer.analyze()
         self.assertTrue(error.has_error_occurred())
-        self.assertTrue(any("TypeError: Variable 'x' expects type 'integer but got expression: '3.5' of type 'double'" in e for e in error.get_errors()))
+        self.assertTrue(any("TypeError: Variable 'x' expects type 'integer' but got expression: '3.5' of type 'double'" in e for e in error.get_errors()))
 
     def test_undefined_variable_usage(self):
         ast = Program([
@@ -100,7 +101,7 @@ class TestAnalyzer(unittest.TestCase):
         analyzer = SemanticAnalyzer(ast)
         analyzer.analyze()
         self.assertTrue(error.has_error_occurred())
-        self.assertTrue(any("ReferenceError: Incorrect Function Call on line 1. A function with name 'foo' does not exists." in e for e in error.get_errors()))
+        self.assertTrue(any("ReferenceError: Incorrect Function Call on line 1. A function with name 'foo' does not exist." in e for e in error.get_errors()))
 
     def test_function_return(self):
         ast = Program([
@@ -120,11 +121,11 @@ class TestAnalyzer(unittest.TestCase):
                     Comparison(Integer(1), '<', Integer(2)),  # Condition always true
                     Block([Return(Integer(1))]),  # This branch returns
                     Block([  # The else branch does not return
-                        FunctionCall('print', [Argument(String("No return here"))], None, line=3)
+                        FunctionCall('print', [Argument(String("No return here"))], line=3)
                     ])
                 )
             ]), line=2),
-            FunctionCall('testFunc', [], None, line=5)
+            FunctionCall('testFunc', [], line=5)
         ])
         analyzer = SemanticAnalyzer(ast)
         analyzer.analyze()
@@ -147,7 +148,7 @@ class TestAnalyzer(unittest.TestCase):
                     ]
                 )
             ]), line=1),
-            FunctionCall('checkValue', [], None, line=4)
+            FunctionCall('checkValue', [], line=4)
         ])
         analyzer = SemanticAnalyzer(ast)
         analyzer.analyze()
@@ -168,7 +169,7 @@ class TestAnalyzer(unittest.TestCase):
                     ])
                 )
             ]), line=1),
-            FunctionCall('loopFunc', [], None, line=5)
+            FunctionCall('loopFunc', [], line=5)
         ])
         analyzer = SemanticAnalyzer(ast)
         analyzer.analyze()
@@ -184,7 +185,7 @@ class TestAnalyzer(unittest.TestCase):
                     elseBlock=Block([Return(Integer(2))])  # Return in else block
                 )
             ]), line=1),
-            FunctionCall('exampleFunc', [], None, line=4)
+            FunctionCall('exampleFunc', [], line=4)
         ])
         analyzer = SemanticAnalyzer(ast)
         analyzer.analyze()
@@ -203,7 +204,7 @@ class TestAnalyzer(unittest.TestCase):
                     )
                 )
             ]), line=1),
-            FunctionCall('multiCheck', [], None, line=4)
+            FunctionCall('multiCheck', [],line=4)
         ])
         analyzer = SemanticAnalyzer(ast)
         analyzer.analyze()
@@ -221,6 +222,21 @@ class TestAnalyzer(unittest.TestCase):
         self.assertTrue(error.has_error_occurred())
         self.assertTrue(any("TypeError: Return Type error on line 2. Expected return of type 'integer' for function 'square' got: 'string' instead." in e for e in error.get_errors()))
 
+    def test_string_cat_1(self):
+        pass
+    
+    def test_string_cat_2(self):
+        pass
+    
+    def test_string_cat_3(self):
+        pass
+    
+    def test_string_cat_4(self):
+        pass
+    
+    def test_string_cat_5(self):
+        pass
+    
     def test_invalid_argument_type(self):
         ast = Program([
             FunctionDeclaration('testFunc', 'void', [Parameter('x', 'integer')], Block([
@@ -236,9 +252,9 @@ class TestAnalyzer(unittest.TestCase):
     def test_missing_argument(self):
         ast = Program([
             FunctionDeclaration('testFunc', 'void', [Parameter('x', 'integer')], Block([
-                FunctionCall('print',[Argument(VariableReference('x'))], None,line=1),
+                FunctionCall('print',[Argument(VariableReference('x'))], line=1),
             ]),line=1),
-            FunctionCall('testFunc', [], None,line=3)
+            FunctionCall('testFunc', [], line=3)
         ])
         analyzer = SemanticAnalyzer(ast)
         analyzer.analyze()

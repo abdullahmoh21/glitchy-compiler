@@ -53,7 +53,6 @@ class TokenType(Enum):
     FOR = 107
     RETURN = 108
     BREAK = 109
-    GLITCH = 110
     # -------------------------------- #
     # Operators.
     EQ = 301            # =
