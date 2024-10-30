@@ -3,15 +3,15 @@ import sys
 from setuptools import setup, find_packages
 from setuptools.command.install import install
 
-class CustomInstallCommand(install):
+class checkClang(install):
     def run(self):
+        # Check if clang is installed
         try:
-            # Check if llvm-as is installed
-            subprocess.run(['llvm-as', '--version'], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            print("LLVM is installed.")
+            subprocess.run(['clang', '--version'], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            print("Clang is installed.")
         except subprocess.CalledProcessError:
-            print("Error: LLVM is not installed. Please install LLVM from https://llvm.org/")
-            sys.exit(1)  # Exit with error if LLVM is not installed
+            print("Error: Clang is not installed. Please install Clang and ensure it's in your PATH.")
+            sys.exit(1)  # Exit with error if Clang is not installed
 
         install.run(self)
 
@@ -20,7 +20,7 @@ setup(
     version="1.0",
     packages=find_packages(),
     install_requires=[
-        "llvmlite",
+        "llvmlite",  # Ensure llvmlite is installed for LLVM IR handling
     ],
     entry_points={
         'console_scripts': [
@@ -36,6 +36,6 @@ setup(
     ],
     python_requires='>=3.6',
     cmdclass={
-        'install': CustomInstallCommand,  # Use the custom install class
+        'install': checkClang,  # Ensure clang is installed for linking during "glitch" game
     },
 )
